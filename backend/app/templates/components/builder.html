@@ -1,0 +1,31 @@
+<div id="builder-container" class="pb-24 fade-in">
+    <!-- Sticky Stats Panel -->
+    <div id="stats-panel" class="bg-slate-800/95 p-4 rounded-2xl flex justify-between items-center shadow-xl shadow-slate-900/50 border border-slate-700/50 sticky top-4 z-40 mb-6 backdrop-blur-xl">
+        <div class="text-center w-1/3">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Players</p>
+            <p class="text-2xl font-black {% if count == 12 %}text-emerald-400{% else %}text-white{% endif %} transition-colors">{{ count }}<span class="text-lg text-slate-500">/12</span></p>
+        </div>
+        
+        <div class="h-10 w-px bg-slate-700/80 rounded-full"></div>
+
+        <div class="text-center w-1/3">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Credits</p>
+            <p class="text-2xl font-black {% if credits_left < 0 %}text-rose-500{% else %}text-sky-400{% endif %} transition-colors">{{ credits_left|round(1) }}</p>
+        </div>
+    </div>
+    
+    <!-- Player Selection List -->
+    <div class="space-y-3">
+        {% for p in players %}
+            {% set is_selected = p.id in draft %}
+            {% include 'components/player_card.html' %}
+        {% endfor %}
+    </div>
+
+    <!-- Save Module -->
+    <div id="save-status"></div>
+    <button hx-post="/web/save_team" hx-target="#save-status" hx-swap="outerHTML" 
+        class="haptic-btn w-full mt-6 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-900 font-black tracking-widest uppercase py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all">
+        LOCK IN ROSTER
+    </button>
+</div>

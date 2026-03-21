@@ -1,0 +1,11 @@
+{
+  "name": "kric11-frontend",
+  "version": "1.0.0",
+  "description": "Frontend container for Kric11 (HTMX+Tailwind served via Node or FastAPI)",
+  "scripts": {
+    "start": "npx serve -l 3000"
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}
