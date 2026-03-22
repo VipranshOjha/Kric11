@@ -1,0 +1,36 @@
+<div class="slide-in space-y-3">
+    <h2 class="text-lg font-medium text-slate-700 text-center mb-6">Standings</h2>
+    
+    {% if not teams %}
+        <div class="bg-white rounded-3xl p-10 text-center shadow-sm border border-slate-100">
+            <p class="text-sm text-slate-400 font-medium">No rosters locked yet</p>
+            <p class="text-xs text-slate-300 mt-1">Be the first to submit your squad.</p>
+        </div>
+    {% endif %}
+    
+    {% for t in teams %}
+        {% set rank = loop.index %}
+        <div class="bg-white rounded-3xl p-4 flex items-center justify-between shadow-sm border border-slate-100
+            {% if rank == 1 %}border-slate-300{% endif %}">
+            
+            <div class="flex items-center space-x-4">
+                <div class="font-semibold text-base w-6 text-center
+                    {% if rank == 1 %}text-slate-700{% elif rank == 2 %}text-slate-500{% elif rank == 3 %}text-slate-400{% else %}text-slate-300{% endif %}">
+                    {{ rank }}
+                </div>
+                <div class="h-9 w-9 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center font-medium text-sm text-slate-500">
+                    {{ t.user.username[0].upper() }}
+                </div>
+                <div>
+                    <h3 class="font-medium text-sm text-slate-700">{{ t.user.username }}</h3>
+                    <p class="text-[10px] text-slate-400 tracking-wider">Match 1</p>
+                </div>
+            </div>
+            
+            <div class="text-right">
+                <h3 class="font-semibold text-base text-slate-700">{{ t.total_points }}</h3>
+                <p class="text-[9px] text-slate-300 font-medium tracking-wider uppercase">pts</p>
+            </div>
+        </div>
+    {% endfor %}
+</div>

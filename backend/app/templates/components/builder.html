@@ -1,20 +1,31 @@
-<div id="builder-container" class="pb-24 fade-in">
-    <!-- Sticky Stats Panel -->
-    <div id="stats-panel" class="bg-slate-800/95 p-4 rounded-2xl flex justify-between items-center shadow-xl shadow-slate-900/50 border border-slate-700/50 sticky top-4 z-40 mb-6 backdrop-blur-xl">
-        <div class="text-center w-1/3">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Players</p>
-            <p class="text-2xl font-black {% if count == 12 %}text-emerald-400{% else %}text-white{% endif %} transition-colors">{{ count }}<span class="text-lg text-slate-500">/12</span></p>
+<div id="builder-container" class="slide-in">
+    <!-- Pinned Stats — flat, blends into background -->
+    <div id="stats-panel" class="flex items-center justify-between py-3 mb-6 border-b border-slate-100">
+        <div class="text-center flex-1">
+            <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Players</p>
+            <p class="text-xl font-semibold {% if count == 12 %}text-emerald-600{% else %}text-slate-700{% endif %} transition-colors">
+                {{ count }}<span class="text-sm font-normal text-slate-300"> / 12</span>
+            </p>
         </div>
         
-        <div class="h-10 w-px bg-slate-700/80 rounded-full"></div>
+        <div class="h-6 w-px bg-slate-100"></div>
 
-        <div class="text-center w-1/3">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Credits</p>
-            <p class="text-2xl font-black {% if credits_left < 0 %}text-rose-500{% else %}text-sky-400{% endif %} transition-colors">{{ credits_left|round(1) }}</p>
+        <div class="text-center flex-1">
+            <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Credits Left</p>
+            <p class="text-xl font-semibold {% if credits_left < 10 %}text-red-500{% elif credits_left < 25 %}text-amber-500{% else %}text-slate-700{% endif %} transition-colors">
+                {{ credits_left }}
+            </p>
+        </div>
+        
+        <div class="h-6 w-px bg-slate-100"></div>
+
+        <div class="text-center flex-1">
+            <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Budget</p>
+            <p class="text-xl font-semibold text-slate-300">100</p>
         </div>
     </div>
-    
-    <!-- Player Selection List -->
+
+    <!-- Player Cards -->
     <div class="space-y-3">
         {% for p in players %}
             {% set is_selected = p.id in draft %}
@@ -22,10 +33,12 @@
         {% endfor %}
     </div>
 
-    <!-- Save Module -->
-    <div id="save-status"></div>
-    <button hx-post="/web/save_team" hx-target="#save-status" hx-swap="outerHTML" 
-        class="haptic-btn w-full mt-6 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-900 font-black tracking-widest uppercase py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all">
-        LOCK IN ROSTER
+    <!-- Lock In -->
+    <div id="save-status" class="mt-6"></div>
+    <button hx-post="/web/save_team" hx-target="#save-status" hx-swap="outerHTML"
+        class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200
+        bg-slate-800 text-white hover:bg-slate-700 active:scale-[0.98] active:bg-slate-900
+        shadow-sm">
+        Lock in roster
     </button>
 </div>
