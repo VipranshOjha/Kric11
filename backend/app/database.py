@@ -4,8 +4,15 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./kric11.db")
 
+# Auto-correct: Supabase/Neon provide 'postgresql://' or 'postgres://'
+# but we need 'postgresql+asyncpg://' for our async driver.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # Detect if we're using Postgres (Supabase) or SQLite (local dev)
-_is_postgres = DATABASE_URL.startswith("postgresql")
+_is_postgres = "asyncpg" in DATABASE_URL
 
 engine_kwargs = {
     "echo": not _is_postgres,  # Quiet logs in production
