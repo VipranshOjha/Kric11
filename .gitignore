@@ -1,0 +1,31 @@
+# Dependencies
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+node_modules/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+error.txt
+debug_trace.py
