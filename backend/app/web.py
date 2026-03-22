@@ -9,8 +9,12 @@ from app.database import get_db
 from app.models import User, Match, Player, FantasyTeam, FantasyTeamPlayer
 from app.auth import get_current_user_from_cookie, verify_password, get_password_hash, create_access_token
 
+import os
+
 router = APIRouter(prefix="/web", tags=["Frontend"])
-templates = Jinja2Templates(directory="app/templates")
+
+_here = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(_here, "templates"))
 
 user_drafts = {}
 

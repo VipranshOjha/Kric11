@@ -1,5 +1,15 @@
+import sys
+import os
+
+# Vercel runs this file from the project root — ensure 'backend/' is on sys.path
+# so that 'from app.xyz import ...' resolves correctly.
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(
     title="Kric11 - Fantasy Cricket Dashboard",
