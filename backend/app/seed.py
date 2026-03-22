@@ -1,9 +1,10 @@
 import asyncio
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.models import *
 from datetime import datetime, timezone
 
-DATABASE_URL = "sqlite+aiosqlite:///./kric11.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./kric11.db")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
