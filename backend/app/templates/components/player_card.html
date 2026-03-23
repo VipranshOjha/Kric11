@@ -1,46 +1,65 @@
-<!-- Player Card — Scandinavian Flat -->
+<!-- Player Card — Scandinavian Flat with C/VC selection -->
 <div id="player-card-{{ p.id }}"
-     class="bg-white rounded-3xl p-4 flex items-center justify-between transition-all duration-200 ease-out
-     {% if is_selected %}border-2 border-slate-600 shadow-sm{% else %}border border-slate-100 shadow-sm hover:shadow-md{% endif %}">
+     class="bg-white rounded-3xl p-4 transition-all duration-200 ease-out
+     {% if captain_id == p.id %}border-2 border-indigo-400 shadow-md{% elif vc_id == p.id %}border-2 border-violet-300 shadow-md{% elif is_selected %}border-2 border-slate-600 shadow-sm{% else %}border border-slate-100 shadow-sm hover:shadow-md{% endif %}">
     
-    <div class="flex items-center space-x-4 flex-1 min-w-0">
-        <!-- Minimal Avatar -->
-        <div class="h-10 w-10 rounded-2xl flex items-center justify-center font-medium text-sm flex-shrink-0
-            {% if is_selected %}bg-slate-700 text-white{% else %}bg-slate-50 text-slate-500 border border-slate-100{% endif %} transition-all duration-200">
-            {{ p.name[0] }}
-        </div>
-        
-        <!-- Functional Info Only -->
-        <div class="min-w-0">
-            <h3 class="font-medium text-sm text-slate-800 truncate">{{ p.name }}</h3>
-            <div class="flex items-center space-x-2 mt-0.5">
-                <span class="text-[10px] font-medium text-slate-400 tracking-wider uppercase">{{ p.role }}</span>
-                <span class="text-slate-200">·</span>
-                <span class="text-[10px] font-medium text-slate-400 tracking-wider">{{ p.team }}</span>
+    <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4 flex-1 min-w-0">
+            <!-- Avatar with C/VC badge -->
+            <div class="relative">
+                <div class="h-10 w-10 rounded-2xl flex items-center justify-center font-medium text-sm flex-shrink-0
+                    {% if captain_id == p.id %}bg-indigo-500 text-white{% elif vc_id == p.id %}bg-violet-400 text-white{% elif is_selected %}bg-slate-700 text-white{% else %}bg-slate-50 text-slate-500 border border-slate-100{% endif %} transition-all duration-200">
+                    {% if captain_id == p.id %}C{% elif vc_id == p.id %}VC{% else %}{{ p.name[0] }}{% endif %}
+                </div>
+            </div>
+            
+            <!-- Player Info -->
+            <div class="min-w-0">
+                <h3 class="font-medium text-sm text-slate-800 truncate">{{ p.name }}</h3>
+                <div class="flex items-center space-x-2 mt-0.5">
+                    <span class="text-[10px] font-medium text-slate-400 tracking-wider uppercase">{{ p.role }}</span>
+                    <span class="text-slate-200">·</span>
+                    <span class="text-[10px] font-medium text-slate-400 tracking-wider">{{ p.team }}</span>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Credit + Toggle -->
-    <div class="flex items-center space-x-4 flex-shrink-0">
-        <div class="text-right">
-            <p class="text-sm font-semibold text-slate-700">{{ p.credits }}</p>
-            <p class="text-[9px] text-slate-300 font-medium tracking-wider uppercase">cr</p>
-        </div>
+        <!-- Credit + Actions -->
+        <div class="flex items-center space-x-2 flex-shrink-0">
+            <div class="text-right mr-1">
+                <p class="text-sm font-semibold text-slate-700">{{ p.credits }}</p>
+                <p class="text-[9px] text-slate-300 font-medium tracking-wider uppercase">cr</p>
+            </div>
 
-        <button hx-post="/web/toggle/{{ p.id }}" hx-target="#player-card-{{ p.id }}" hx-swap="outerHTML"
-            class="h-8 w-8 flex items-center justify-center rounded-xl transition-all duration-150 active:scale-90
-            {% if is_selected %}bg-slate-700 text-white{% else %}bg-slate-50 text-slate-400 border border-slate-200 hover:bg-slate-100{% endif %}">
             {% if is_selected %}
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-                </svg>
-            {% else %}
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-                </svg>
+                <!-- C/VC buttons (only for selected players) -->
+                <button hx-post="/web/set_role/{{ p.id }}/C" hx-target="#main-content" hx-swap="innerHTML"
+                    class="h-7 w-7 flex items-center justify-center rounded-lg text-[10px] font-bold transition-all duration-150 active:scale-90
+                    {% if captain_id == p.id %}bg-indigo-500 text-white{% else %}bg-slate-50 text-slate-400 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-500 hover:border-indigo-200{% endif %}">
+                    C
+                </button>
+                <button hx-post="/web/set_role/{{ p.id }}/VC" hx-target="#main-content" hx-swap="innerHTML"
+                    class="h-7 w-7 flex items-center justify-center rounded-lg text-[9px] font-bold transition-all duration-150 active:scale-90
+                    {% if vc_id == p.id %}bg-violet-400 text-white{% else %}bg-slate-50 text-slate-400 border border-slate-200 hover:bg-violet-50 hover:text-violet-500 hover:border-violet-200{% endif %}">
+                    VC
+                </button>
             {% endif %}
-        </button>
+
+            <!-- Select/Deselect -->
+            <button hx-post="/web/toggle/{{ p.id }}" hx-target="#player-card-{{ p.id }}" hx-swap="outerHTML"
+                class="h-8 w-8 flex items-center justify-center rounded-xl transition-all duration-150 active:scale-90
+                {% if is_selected %}bg-slate-700 text-white{% else %}bg-slate-50 text-slate-400 border border-slate-200 hover:bg-slate-100{% endif %}">
+                {% if is_selected %}
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                    </svg>
+                {% else %}
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                {% endif %}
+            </button>
+        </div>
     </div>
 </div>
 

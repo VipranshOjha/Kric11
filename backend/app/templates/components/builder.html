@@ -1,28 +1,39 @@
 <div id="builder-container" class="slide-in">
-    <!-- Pinned Stats — flat, blends into background -->
-    <div id="stats-panel" class="flex items-center justify-between py-3 mb-6 border-b border-slate-100">
+    <!-- Pinned Stats -->
+    <div id="stats-panel" class="flex items-center justify-between py-3 mb-4 border-b border-slate-100">
         <div class="text-center flex-1">
             <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Players</p>
-            <p class="text-xl font-semibold {% if count == 12 %}text-emerald-600{% else %}text-slate-700{% endif %} transition-colors">
+            <p class="text-xl font-semibold {% if count == 12 %}text-emerald-600{% else %}text-slate-700{% endif %}">
                 {{ count }}<span class="text-sm font-normal text-slate-300"> / 12</span>
             </p>
         </div>
-        
         <div class="h-6 w-px bg-slate-100"></div>
-
         <div class="text-center flex-1">
             <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Credits Left</p>
-            <p class="text-xl font-semibold {% if credits_left < 10 %}text-red-500{% elif credits_left < 25 %}text-amber-500{% else %}text-slate-700{% endif %} transition-colors">
+            <p class="text-xl font-semibold {% if credits_left < 10 %}text-red-500{% elif credits_left < 25 %}text-amber-500{% else %}text-slate-700{% endif %}">
                 {{ credits_left }}
             </p>
         </div>
-        
         <div class="h-6 w-px bg-slate-100"></div>
-
         <div class="text-center flex-1">
             <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mb-1">Budget</p>
             <p class="text-xl font-semibold text-slate-300">100</p>
         </div>
+    </div>
+
+    <!-- C/VC Status -->
+    <div class="flex items-center justify-center space-x-4 mb-5 text-[10px] font-medium tracking-wider">
+        <span class="flex items-center space-x-1.5">
+            <span class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold
+                {% if captain_id %}bg-indigo-500 text-white{% else %}bg-slate-100 text-slate-300{% endif %}">C</span>
+            <span class="{% if captain_id %}text-slate-600{% else %}text-slate-300{% endif %}">Captain (2x)</span>
+        </span>
+        <span class="text-slate-200">·</span>
+        <span class="flex items-center space-x-1.5">
+            <span class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold
+                {% if vc_id %}bg-violet-400 text-white{% else %}bg-slate-100 text-slate-300{% endif %}">VC</span>
+            <span class="{% if vc_id %}text-slate-600{% else %}text-slate-300{% endif %}">Vice-Cap (1.5x)</span>
+        </span>
     </div>
 
     <!-- Player Cards -->
@@ -34,11 +45,11 @@
     </div>
 
     <!-- Lock In -->
-    <div id="save-status" class="mt-6"></div>
+    <div id="save-status" class="mt-4"></div>
     <button hx-post="/web/save_team" hx-target="#save-status" hx-swap="outerHTML"
         class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200
-        bg-slate-800 text-white hover:bg-slate-700 active:scale-[0.98] active:bg-slate-900
-        shadow-sm">
+        {% if count == 12 and captain_id and vc_id %}bg-slate-800 text-white hover:bg-slate-700{% else %}bg-slate-200 text-slate-400{% endif %}
+        active:scale-[0.98] shadow-sm">
         Lock in roster
     </button>
 </div>

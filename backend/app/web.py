@@ -62,6 +62,22 @@ def _toast(msg: str, style: str = "warning"):
     </script>
     """
 
+async def _get_user_id(request):
+    username = _get_username(request)
+    if not username: return None, None
+    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
+    if not user: return username, None
+    return username, user["id"]
+
+async def _get_draft_state(user_id):
+    draft_rows = await db.fetch(
+        "SELECT player_id, is_captain, is_vice_captain FROM user_drafts WHERE user_id = $1", user_id
+    )
+    draft = [r["player_id"] for r in draft_rows]
+    captain_id = next((r["player_id"] for r in draft_rows if r["is_captain"]), None)
+    vc_id = next((r["player_id"] for r in draft_rows if r["is_vice_captain"]), None)
+    return draft, captain_id, vc_id
+
 # ── Auth Routes ──
 
 @router.get("/login", response_class=HTMLResponse)
@@ -115,31 +131,24 @@ async def home_view(request: Request):
 
 @router.get("/builder", response_class=HTMLResponse)
 async def builder_page(request: Request):
-    username = _get_username(request)
-    if not username: return _auth_redirect(request)
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
 
-    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
-    if not user: return _auth_redirect(request)
-    user_id = user["id"]
-
-    # Get all players with team abbreviation
     players = await db.fetch("""
         SELECT p.id, p.name, p.role, p.credit_value as credits, t.abbreviation as team
         FROM players p JOIN teams t ON p.team_id = t.id
-        WHERE p.is_active = TRUE
-        ORDER BY p.credit_value DESC
+        WHERE p.is_active = TRUE ORDER BY p.credit_value DESC
     """)
 
-    # Get current draft
-    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
-    draft = [r["player_id"] for r in draft_rows]
-
+    draft, captain_id, vc_id = await _get_draft_state(user_id)
     credits_used = sum(p["credits"] for p in players if p["id"] in draft)
 
     return templates.TemplateResponse("components/builder.html", {
         "request": request,
         "players": players,
         "draft": draft,
+        "captain_id": captain_id,
+        "vc_id": vc_id,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
         "count": len(draft),
         "toast": ""
@@ -147,12 +156,8 @@ async def builder_page(request: Request):
 
 @router.post("/toggle/{player_id}", response_class=HTMLResponse)
 async def toggle_player(request: Request, player_id: int):
-    username = _get_username(request)
-    if not username: return _auth_redirect(request)
-
-    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
-    if not user: return _auth_redirect(request)
-    user_id = user["id"]
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
 
     player = await db.fetchrow("""
         SELECT p.id, p.name, p.role, p.credit_value as credits, t.abbreviation as team
@@ -161,59 +166,78 @@ async def toggle_player(request: Request, player_id: int):
     if not player:
         return HTMLResponse(status_code=404)
 
-    # Check if already selected
     existing = await db.fetchrow("SELECT id FROM user_drafts WHERE user_id = $1 AND player_id = $2", user_id, player_id)
     toast_html = ""
 
     if existing:
-        # Deselect
         await db.execute("DELETE FROM user_drafts WHERE user_id = $1 AND player_id = $2", user_id, player_id)
     else:
-        # Check limits before adding
         draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
         draft_ids = [r["player_id"] for r in draft_rows]
 
         if len(draft_ids) >= MAX_PLAYERS:
             toast_html = _toast("Squad full — 12/12 selected")
         else:
-            all_players = await db.fetch("SELECT id, credit_value FROM players")
-            credits_map = {r["id"]: r["credit_value"] for r in all_players}
-            current_credits = sum(credits_map.get(pid, 0) for pid in draft_ids)
-
-            if current_credits + player["credits"] > BUDGET_LIMIT:
-                remaining = round(BUDGET_LIMIT - current_credits, 1)
-                toast_html = _toast(f"Budget exceeded — {remaining} cr left")
+            all_p = await db.fetch("SELECT id, credit_value FROM players")
+            credits_map = {r["id"]: r["credit_value"] for r in all_p}
+            current = sum(credits_map.get(pid, 0) for pid in draft_ids)
+            if current + player["credits"] > BUDGET_LIMIT:
+                toast_html = _toast(f"Budget exceeded — {round(BUDGET_LIMIT - current, 1)} cr left")
             else:
                 await db.execute("INSERT INTO user_drafts (user_id, player_id) VALUES ($1, $2)", user_id, player_id)
 
-    # Recalculate state
-    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
-    draft = [r["player_id"] for r in draft_rows]
-    all_players = await db.fetch("SELECT id, credit_value FROM players")
-    credits_map = {r["id"]: r["credit_value"] for r in all_players}
+    draft, captain_id, vc_id = await _get_draft_state(user_id)
+    all_p = await db.fetch("SELECT id, credit_value FROM players")
+    credits_map = {r["id"]: r["credit_value"] for r in all_p}
     credits_used = sum(credits_map.get(pid, 0) for pid in draft)
 
     return templates.TemplateResponse("components/player_card.html", {
         "request": request,
         "p": player,
         "is_selected": player_id in draft,
+        "captain_id": captain_id,
+        "vc_id": vc_id,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
         "count": len(draft),
         "toast": toast_html
     })
 
+# ── Captain / Vice-Captain ──
+
+@router.post("/set_role/{player_id}/{role}", response_class=HTMLResponse)
+async def set_captain_vc(request: Request, player_id: int, role: str):
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
+
+    in_draft = await db.fetchrow("SELECT id FROM user_drafts WHERE user_id = $1 AND player_id = $2", user_id, player_id)
+    if not in_draft:
+        return HTMLResponse(status_code=400)
+
+    if role == "C":
+        await db.execute("UPDATE user_drafts SET is_captain = FALSE WHERE user_id = $1", user_id)
+        await db.execute("UPDATE user_drafts SET is_captain = TRUE, is_vice_captain = FALSE WHERE user_id = $1 AND player_id = $2", user_id, player_id)
+    elif role == "VC":
+        await db.execute("UPDATE user_drafts SET is_vice_captain = FALSE WHERE user_id = $1", user_id)
+        await db.execute("UPDATE user_drafts SET is_vice_captain = TRUE, is_captain = FALSE WHERE user_id = $1 AND player_id = $2", user_id, player_id)
+
+    # Re-render the full builder so all cards refresh
+    return await builder_page(request)
+
+# ── Lock Roster ──
+
 @router.post("/save_team", response_class=HTMLResponse)
 async def save_team(request: Request):
-    username = _get_username(request)
-    if not username: return _auth_redirect(request)
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
 
-    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
-    if not user: return _auth_redirect(request)
-    user_id = user["id"]
-
-    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
+    draft_rows = await db.fetch("SELECT player_id, is_captain, is_vice_captain FROM user_drafts WHERE user_id = $1", user_id)
     if len(draft_rows) != 12:
         return HTMLResponse(f"<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Select exactly 12 players ({len(draft_rows)}/12)</div>")
+
+    has_c = any(r["is_captain"] for r in draft_rows)
+    has_vc = any(r["is_vice_captain"] for r in draft_rows)
+    if not has_c or not has_vc:
+        return HTMLResponse("<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Set a Captain and Vice-Captain first</div>")
 
     existing = await db.fetchrow("SELECT id FROM fantasy_teams WHERE user_id = $1", user_id)
     if existing:
@@ -221,6 +245,8 @@ async def save_team(request: Request):
 
     await db.execute("INSERT INTO fantasy_teams (user_id) VALUES ($1)", user_id)
     return HTMLResponse("<div id='save-status' class='bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>✓ Roster locked successfully</div>")
+
+# ── Leaderboard ──
 
 @router.get("/leaderboard_view", response_class=HTMLResponse)
 async def leaderboard_view(request: Request):
@@ -230,13 +256,10 @@ async def leaderboard_view(request: Request):
     teams = await db.fetch("""
         SELECT u.username, ft.total_points,
             (SELECT COUNT(*) FROM user_drafts ud WHERE ud.user_id = u.id) as player_count
-        FROM fantasy_teams ft
-        JOIN users u ON ft.user_id = u.id
+        FROM fantasy_teams ft JOIN users u ON ft.user_id = u.id
         ORDER BY ft.total_points DESC
     """)
 
     return templates.TemplateResponse("components/leaderboard.html", {
-        "request": request,
-        "teams": teams,
-        "username": username
+        "request": request, "teams": teams, "username": username
     })
