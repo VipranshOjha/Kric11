@@ -6,10 +6,7 @@ import bcrypt
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 
-from app.data import (
-    PLAYERS, PLAYERS_BY_ID, USERS, DRAFTS, LOCKED_TEAMS,
-    BUDGET_LIMIT, MAX_PLAYERS
-)
+from app import db
 
 router = APIRouter(prefix="/web", tags=["Frontend"])
 
@@ -18,8 +15,10 @@ templates = Jinja2Templates(directory=os.path.join(_here, "templates"))
 
 SECRET_KEY = os.getenv("SECRET_KEY", "kric11_super_secret_key_change_in_production")
 ALGORITHM = "HS256"
+BUDGET_LIMIT = 100.0
+MAX_PLAYERS = 12
 
-# ── Auth helpers ──
+# ── Auth Helpers ──
 
 def _hash_pw(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -31,18 +30,15 @@ def _create_token(username: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=7)
     return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
-def _get_user(request: Request):
+def _get_username(request: Request):
     token = request.cookies.get("access_token", "")
     if token.startswith("Bearer "):
         token = token[7:]
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if username and username in USERS:
-            return username
+        return payload.get("sub")
     except JWTError:
-        pass
-    return None
+        return None
 
 def _auth_redirect(request: Request):
     if "hx-request" in request.headers:
@@ -66,7 +62,7 @@ def _toast(msg: str, style: str = "warning"):
     </script>
     """
 
-# ── Routes ──
+# ── Auth Routes ──
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, register: bool = False):
@@ -74,22 +70,24 @@ async def login_page(request: Request, register: bool = False):
 
 @router.post("/login", response_class=HTMLResponse)
 async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
-    user = USERS.get(username)
-    if not user or not _verify_pw(password, user["password"]):
+    row = await db.fetchrow("SELECT hashed_password FROM users WHERE username = $1", username)
+    if not row or not _verify_pw(password, row["hashed_password"]):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password.", "is_register": False})
     token = _create_token(username)
     resp = RedirectResponse(url="/web", status_code=status.HTTP_303_SEE_OTHER)
-    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True)
+    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
     return resp
 
 @router.post("/register", response_class=HTMLResponse)
 async def register_post(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    if username in USERS:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Username already taken.", "is_register": True})
-    USERS[username] = {"password": _hash_pw(password), "email": email}
+    existing = await db.fetchrow("SELECT id FROM users WHERE username = $1 OR email = $2", username, email)
+    if existing:
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Username or email already taken.", "is_register": True})
+    hashed = _hash_pw(password)
+    await db.execute("INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3)", username, email, hashed)
     token = _create_token(username)
     resp = RedirectResponse(url="/web", status_code=status.HTTP_303_SEE_OTHER)
-    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True)
+    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
     return resp
 
 @router.get("/logout")
@@ -98,30 +96,49 @@ async def logout():
     resp.delete_cookie("access_token")
     return resp
 
+# ── App Shell ──
+
 @router.get("/", response_class=HTMLResponse)
 async def shell(request: Request):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username:
         return RedirectResponse(url="/web/login", status_code=303)
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
 
+# ── Views ──
+
 @router.get("/home_view", response_class=HTMLResponse)
 async def home_view(request: Request):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username: return _auth_redirect(request)
     return templates.TemplateResponse("components/home.html", {"request": request, "username": username})
 
 @router.get("/builder", response_class=HTMLResponse)
 async def builder_page(request: Request):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username: return _auth_redirect(request)
 
-    draft = DRAFTS.setdefault(username, [])
-    credits_used = sum(PLAYERS_BY_ID[pid]["credits"] for pid in draft if pid in PLAYERS_BY_ID)
+    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
+    if not user: return _auth_redirect(request)
+    user_id = user["id"]
+
+    # Get all players with team abbreviation
+    players = await db.fetch("""
+        SELECT p.id, p.name, p.role, p.credit_value as credits, t.abbreviation as team
+        FROM players p JOIN teams t ON p.team_id = t.id
+        WHERE p.is_active = TRUE
+        ORDER BY p.credit_value DESC
+    """)
+
+    # Get current draft
+    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
+    draft = [r["player_id"] for r in draft_rows]
+
+    credits_used = sum(p["credits"] for p in players if p["id"] in draft)
 
     return templates.TemplateResponse("components/builder.html", {
         "request": request,
-        "players": sorted(PLAYERS, key=lambda p: p["credits"], reverse=True),
+        "players": players,
         "draft": draft,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
         "count": len(draft),
@@ -130,30 +147,51 @@ async def builder_page(request: Request):
 
 @router.post("/toggle/{player_id}", response_class=HTMLResponse)
 async def toggle_player(request: Request, player_id: int):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username: return _auth_redirect(request)
 
-    player = PLAYERS_BY_ID.get(player_id)
+    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
+    if not user: return _auth_redirect(request)
+    user_id = user["id"]
+
+    player = await db.fetchrow("""
+        SELECT p.id, p.name, p.role, p.credit_value as credits, t.abbreviation as team
+        FROM players p JOIN teams t ON p.team_id = t.id WHERE p.id = $1
+    """, player_id)
     if not player:
         return HTMLResponse(status_code=404)
 
-    draft = DRAFTS.setdefault(username, [])
+    # Check if already selected
+    existing = await db.fetchrow("SELECT id FROM user_drafts WHERE user_id = $1 AND player_id = $2", user_id, player_id)
     toast_html = ""
 
-    if player_id in draft:
-        draft.remove(player_id)
+    if existing:
+        # Deselect
+        await db.execute("DELETE FROM user_drafts WHERE user_id = $1 AND player_id = $2", user_id, player_id)
     else:
-        if len(draft) >= MAX_PLAYERS:
+        # Check limits before adding
+        draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
+        draft_ids = [r["player_id"] for r in draft_rows]
+
+        if len(draft_ids) >= MAX_PLAYERS:
             toast_html = _toast("Squad full — 12/12 selected")
         else:
-            current_credits = sum(PLAYERS_BY_ID[pid]["credits"] for pid in draft)
+            all_players = await db.fetch("SELECT id, credit_value FROM players")
+            credits_map = {r["id"]: r["credit_value"] for r in all_players}
+            current_credits = sum(credits_map.get(pid, 0) for pid in draft_ids)
+
             if current_credits + player["credits"] > BUDGET_LIMIT:
                 remaining = round(BUDGET_LIMIT - current_credits, 1)
                 toast_html = _toast(f"Budget exceeded — {remaining} cr left")
             else:
-                draft.append(player_id)
+                await db.execute("INSERT INTO user_drafts (user_id, player_id) VALUES ($1, $2)", user_id, player_id)
 
-    credits_used = sum(PLAYERS_BY_ID[pid]["credits"] for pid in draft)
+    # Recalculate state
+    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
+    draft = [r["player_id"] for r in draft_rows]
+    all_players = await db.fetch("SELECT id, credit_value FROM players")
+    credits_map = {r["id"]: r["credit_value"] for r in all_players}
+    credits_used = sum(credits_map.get(pid, 0) for pid in draft)
 
     return templates.TemplateResponse("components/player_card.html", {
         "request": request,
@@ -166,31 +204,36 @@ async def toggle_player(request: Request, player_id: int):
 
 @router.post("/save_team", response_class=HTMLResponse)
 async def save_team(request: Request):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username: return _auth_redirect(request)
 
-    draft = DRAFTS.get(username, [])
-    if len(draft) != 12:
-        return HTMLResponse(f"<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Select exactly 12 players ({len(draft)}/12)</div>")
+    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
+    if not user: return _auth_redirect(request)
+    user_id = user["id"]
 
-    if username in LOCKED_TEAMS:
+    draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1", user_id)
+    if len(draft_rows) != 12:
+        return HTMLResponse(f"<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Select exactly 12 players ({len(draft_rows)}/12)</div>")
+
+    existing = await db.fetchrow("SELECT id FROM fantasy_teams WHERE user_id = $1", user_id)
+    if existing:
         return HTMLResponse("<div id='save-status' class='bg-amber-50 text-amber-600 border border-amber-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Roster already locked</div>")
 
-    LOCKED_TEAMS[username] = {
-        "players": list(draft),
-        "captain": draft[0],
-        "vice_captain": draft[1],
-        "points": 0.0
-    }
-
+    await db.execute("INSERT INTO fantasy_teams (user_id) VALUES ($1)", user_id)
     return HTMLResponse("<div id='save-status' class='bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>✓ Roster locked successfully</div>")
 
 @router.get("/leaderboard_view", response_class=HTMLResponse)
 async def leaderboard_view(request: Request):
-    username = _get_user(request)
+    username = _get_username(request)
     if not username: return _auth_redirect(request)
 
-    teams = sorted(LOCKED_TEAMS.items(), key=lambda x: x[1]["points"], reverse=True)
+    teams = await db.fetch("""
+        SELECT u.username, ft.total_points,
+            (SELECT COUNT(*) FROM user_drafts ud WHERE ud.user_id = u.id) as player_count
+        FROM fantasy_teams ft
+        JOIN users u ON ft.user_id = u.id
+        ORDER BY ft.total_points DESC
+    """)
 
     return templates.TemplateResponse("components/leaderboard.html", {
         "request": request,
