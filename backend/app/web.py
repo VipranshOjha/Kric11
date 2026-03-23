@@ -182,7 +182,7 @@ async def toggle_player(request: Request, player_id: int):
             credits_map = {r["id"]: r["credit_value"] for r in all_p}
             current = sum(credits_map.get(pid, 0) for pid in draft_ids)
             if current + player["credits"] > BUDGET_LIMIT:
-                toast_html = _toast(f"Budget exceeded — {round(BUDGET_LIMIT - current, 1)} cr left")
+                toast_html = _toast("Not Enough Credits")
             else:
                 await db.execute("INSERT INTO user_drafts (user_id, player_id) VALUES ($1, $2)", user_id, player_id)
 
