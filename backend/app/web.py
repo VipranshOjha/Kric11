@@ -28,9 +28,9 @@ def _hash_pw(password: str) -> str:
 def _verify_pw(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
-def _create_token(username: str) -> str:
+def _create_token(username: str, user_id: int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=7)
-    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": username, "uid": user_id, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 def _get_username(request: Request):
     token = request.cookies.get("access_token", "")
@@ -64,12 +64,24 @@ def _toast(msg: str, style: str = "warning"):
     </script>
     """
 
-async def _get_user_id(request):
-    username = _get_username(request)
-    if not username: return None, None
-    user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
-    if not user: return username, None
-    return username, user["id"]
+async def _get_user_id(request: Request):
+    token = request.cookies.get("access_token", "")
+    if token.startswith("Bearer "):
+        token = token[7:]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        uid = payload.get("uid")
+        username = payload.get("sub")
+        if uid:
+            return username, uid
+        
+        # Fallback for old tokens without uid
+        if username:
+            user = await db.fetchrow("SELECT id FROM users WHERE username = $1", username)
+            return username, user["id"] if user else None
+    except JWTError:
+        pass
+    return None, None
 
 def _get_active_contest(request: Request):
     c = request.cookies.get("active_contest")
@@ -96,10 +108,10 @@ async def login_page(request: Request, register: bool = False):
 
 @router.post("/login", response_class=HTMLResponse)
 async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
-    row = await db.fetchrow("SELECT hashed_password FROM users WHERE username = $1", username)
+    row = await db.fetchrow("SELECT id, hashed_password FROM users WHERE username = $1", username)
     if not row or not _verify_pw(password, row["hashed_password"]):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password.", "is_register": False})
-    token = _create_token(username)
+    token = _create_token(username, row["id"])
     resp = RedirectResponse(url="/web", status_code=status.HTTP_303_SEE_OTHER)
     resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
     return resp
@@ -110,8 +122,8 @@ async def register_post(request: Request, username: str = Form(...), email: str 
     if existing:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Username or email already taken.", "is_register": True})
     hashed = _hash_pw(password)
-    await db.execute("INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3)", username, email, hashed)
-    token = _create_token(username)
+    user_id = await db.fetchval("INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3) RETURNING id", username, email, hashed)
+    token = _create_token(username, user_id)
     resp = RedirectResponse(url="/web", status_code=status.HTTP_303_SEE_OTHER)
     resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
     return resp
@@ -292,38 +304,43 @@ async def toggle_player(request: Request, player_id: int):
     if not player:
         return HTMLResponse(status_code=404)
 
-    existing = await db.fetchrow("SELECT id FROM user_drafts WHERE user_id = $1 AND contest_id = $2 AND player_id = $3", 
-                                 user_id, contest_id, player_id)
+    # 2. Get current draft state directly
+    draft_rows = await db.fetch("""
+        SELECT ud.player_id, p.credit_value 
+        FROM user_drafts ud 
+        JOIN players p ON ud.player_id = p.id
+        WHERE ud.user_id = $1 AND ud.contest_id = $2
+    """, user_id, contest_id)
+    
+    draft = [r["player_id"] for r in draft_rows]
+    credits_used = sum(r["credit_value"] for r in draft_rows)
+    is_selected = player_id in draft
     toast_html = ""
 
-    if existing:
-        await db.execute("DELETE FROM user_drafts WHERE user_id = $1 AND contest_id = $2 AND player_id = $3", 
-                         user_id, contest_id, player_id)
+    # 3. Toggle Logic
+    if is_selected:
+        await db.execute("DELETE FROM user_drafts WHERE user_id = $1 AND contest_id = $2 AND player_id = $3", user_id, contest_id, player_id)
+        draft.remove(player_id)
+        credits_used -= player["credits"]
+        is_selected = False
     else:
-        draft_rows = await db.fetch("SELECT player_id FROM user_drafts WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
-        draft_ids = [r["player_id"] for r in draft_rows]
-
-        if len(draft_ids) >= MAX_PLAYERS:
+        if len(draft) >= MAX_PLAYERS:
             toast_html = _toast("No space in team")
+        elif credits_used + player["credits"] > BUDGET_LIMIT:
+            toast_html = _toast("Not Enough Credits")
         else:
-            all_p = await db.fetch("SELECT id, credit_value FROM players")
-            credits_map = {r["id"]: r["credit_value"] for r in all_p}
-            current = sum(credits_map.get(pid, 0) for pid in draft_ids)
-            if current + player["credits"] > BUDGET_LIMIT:
-                toast_html = _toast("Not Enough Credits")
-            else:
-                await db.execute("INSERT INTO user_drafts (user_id, contest_id, player_id) VALUES ($1, $2, $3)", 
-                                 user_id, contest_id, player_id)
+            await db.execute("INSERT INTO user_drafts (user_id, contest_id, player_id) VALUES ($1, $2, $3)", user_id, contest_id, player_id)
+            draft.append(player_id)
+            credits_used += player["credits"]
+            is_selected = True
 
-    draft, captain_id, vc_id = await _get_draft_state(user_id, contest_id)
-    all_p = await db.fetch("SELECT id, credit_value FROM players")
-    credits_map = {r["id"]: r["credit_value"] for r in all_p}
-    credits_used = sum(credits_map.get(pid, 0) for pid in draft)
+    # 4. Get updated draft C/VC state
+    _, captain_id, vc_id = await _get_draft_state(user_id, contest_id)
 
     return templates.TemplateResponse("components/player_card.html", {
         "request": request,
         "p": player,
-        "is_selected": player_id in draft,
+        "is_selected": is_selected,
         "captain_id": captain_id,
         "vc_id": vc_id,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
@@ -387,13 +404,19 @@ async def save_team(request: Request):
         """, user_id, contest_id)
         
         total = 0.0
+        # O(1) bulk fetch instead of N+1
+        perfs = await db.fetch("SELECT player_name, total_points FROM player_match_performances WHERE match_api_id = $1", contest["match_api_id"])
+        
         for d in draft_rows:
-            perf = await db.fetchrow("SELECT total_points FROM player_match_performances WHERE match_api_id = $1 AND player_name ILIKE $2", contest["match_api_id"], f"%{d['player_name']}%")
-            if perf:
-                pts = perf["total_points"]
-                if d["is_captain"]: pts *= 2.0
-                elif d["is_vice_captain"]: pts *= 1.5
-                total += pts
+            d_name = d['player_name'].lower()
+            for p in perfs:
+                p_name = p['player_name'].lower()
+                if d_name in p_name or p_name in d_name:
+                    pts = p["total_points"]
+                    if d["is_captain"]: pts *= 2.0
+                    elif d["is_vice_captain"]: pts *= 1.5
+                    total += pts
+                    break
                 
         await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2 AND contest_id = $3", total, user_id, contest_id)
 
