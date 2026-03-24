@@ -304,7 +304,7 @@ async def toggle_player(request: Request, player_id: int):
         draft_ids = [r["player_id"] for r in draft_rows]
 
         if len(draft_ids) >= MAX_PLAYERS:
-            toast_html = _toast("Squad full — 12/12 selected")
+            toast_html = _toast("No space in team")
         else:
             all_p = await db.fetch("SELECT id, credit_value FROM players")
             credits_map = {r["id"]: r["credit_value"] for r in all_p}
@@ -376,6 +376,27 @@ async def save_team(request: Request):
         return HTMLResponse("<div id='save-status' class='bg-amber-50 text-amber-600 border border-amber-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Roster already locked</div>")
 
     await db.execute("INSERT INTO fantasy_teams (user_id, contest_id) VALUES ($1, $2)", user_id, contest_id)
+    
+    # Instantly calculate points if the match is already synced
+    contest = await db.fetchrow("SELECT match_api_id FROM contests WHERE id = $1", contest_id)
+    if contest and contest["match_api_id"]:
+        draft_rows = await db.fetch("""
+            SELECT ud.is_captain, ud.is_vice_captain, p.name as player_name
+            FROM user_drafts ud JOIN players p ON ud.player_id = p.id
+            WHERE ud.user_id = $1 AND ud.contest_id = $2
+        """, user_id, contest_id)
+        
+        total = 0.0
+        for d in draft_rows:
+            perf = await db.fetchrow("SELECT total_points FROM player_match_performances WHERE match_api_id = $1 AND player_name ILIKE $2", contest["match_api_id"], f"%{d['player_name']}%")
+            if perf:
+                pts = perf["total_points"]
+                if d["is_captain"]: pts *= 2.0
+                elif d["is_vice_captain"]: pts *= 1.5
+                total += pts
+                
+        await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2 AND contest_id = $3", total, user_id, contest_id)
+
     return HTMLResponse("<div id='save-status' class='bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>✓ Roster locked successfully</div>")
 
 
