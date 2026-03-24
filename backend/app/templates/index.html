@@ -36,21 +36,63 @@
         }
         .fade-in { animation: slideIn 0.25s ease-out; }
     </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <script>
+        // Check local storage or prefers-color-scheme
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        function toggleDarkMode() {
+            var darkIcon = document.getElementById('theme-toggle-dark-icon');
+            var lightIcon = document.getElementById('theme-toggle-light-icon');
+
+            // toggle icons
+            darkIcon.classList.toggle('hidden');
+            lightIcon.classList.toggle('hidden');
+
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+    </script>
 </head>
-<body>
+<body class="bg-[#f8fafc] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
 
     <!-- Header — thin, functional -->
-    <header class="bg-white/80 backdrop-blur-sm px-5 py-4 sticky top-0 z-50 border-b border-slate-100">
+    <header class="bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm px-5 py-4 sticky top-0 z-50 border-b border-slate-100 dark:border-slate-800 transition-colors duration-200">
         <div class="max-w-lg mx-auto flex justify-between items-center">
             <div>
-                <h1 class="text-lg font-light text-slate-800 tracking-wide">kric<span class="font-semibold">11</span></h1>
+                <h1 class="text-lg font-light text-slate-800 dark:text-slate-100 tracking-wide">kric<span class="font-semibold">11</span></h1>
             </div>
-            <div id="app-header-teams" class="flex items-center space-x-3 text-xs font-medium text-slate-400 tracking-wider">
-                {% if t1 and t2 %}
-                <span class="text-slate-600">{{ t1 }}</span>
-                <span class="text-slate-300">·</span>
-                <span class="text-slate-600">{{ t2 }}</span>
-                {% endif %}
+            <div class="flex items-center space-x-4">
+                <div id="app-header-teams" class="flex items-center space-x-3 text-xs font-medium text-slate-400 dark:text-slate-500 tracking-wider">
+                    {% if t1 and t2 %}
+                    <span class="text-slate-600 dark:text-slate-300">{{ t1 }}</span>
+                    <span class="text-slate-300 dark:text-slate-600">·</span>
+                    <span class="text-slate-600 dark:text-slate-300">{{ t2 }}</span>
+                    {% endif %}
+                </div>
+                <!-- Theme Toggle -->
+                <button onclick="toggleDarkMode()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center transition-colors">
+                    <svg id="theme-toggle-dark-icon" class="w-[18px] h-[18px] hidden" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                    </svg>
+                    <svg id="theme-toggle-light-icon" class="w-[18px] h-[18px] hidden" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.22 4.22a1 1 0 011.415 0l.708.707a1 1 0 01-1.414 1.414l-.708-.707a1 1 0 010-1.414zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM14.22 15.78a1 1 0 010 1.415l-.708.707a1 1 0 01-1.414-1.414l.708-.707a1 1 0 011.414 0zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm-4.22-4.22a1 1 0 010-1.415l.708-.707a1 1 0 011.414 1.414l-.708.707a1 1 0 01-1.414 0zM2 10a1 1 0 011-1h1a1 1 0 110 2H3a1 1 0 01-1-1zm4.22-4.22a1 1 0 01-1.415 0l-.708-.707a1 1 0 011.414-1.414l.708.707a1 1 0 010 1.414z"></path>
+                    </svg>
+                </button>
             </div>
         </div>
     </header>
@@ -66,16 +108,16 @@
     </main>
 
     <!-- Bottom Navigation — flat line-art -->
-    <nav class="fixed bottom-0 w-full bg-white border-t border-slate-100 z-50">
+    <nav class="fixed bottom-0 w-full bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 z-50 transition-colors duration-200">
         <div class="max-w-lg mx-auto flex justify-around items-center h-16 px-8">
-            <button class="nav-item active flex flex-col items-center justify-center space-y-1 text-slate-800 transition-colors duration-200 w-full" hx-get="/web/home_view" hx-target="#main-content">
+            <button class="nav-item active flex flex-col items-center justify-center space-y-1 text-slate-800 dark:text-slate-100 transition-colors duration-200 w-full" hx-get="/web/home_view" hx-target="#main-content">
                 <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
                 </svg>
                 <span class="text-[9px] font-medium tracking-wider uppercase">Home</span>
             </button>
 
-            <button class="nav-item flex flex-col items-center justify-center space-y-1 text-slate-400 transition-colors duration-200 w-full" hx-get="/web/builder" hx-target="#main-content" id="nav-draft">
+            <button class="nav-item flex flex-col items-center justify-center space-y-1 text-slate-400 dark:text-slate-500 transition-colors duration-200 w-full" hx-get="/web/builder" hx-target="#main-content" id="nav-draft">
                 <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21 12.3 12.3 0 0 1 2.76 19.168l-.022-.019a4.125 4.125 0 0 1 6.787-4.674M15 16.058a9.337 9.337 0 0 0-4.121-.952c-.946 0-1.86.14-2.725.4"/>
                     <circle cx="9.75" cy="6.75" r="3.75"/>
@@ -84,7 +126,7 @@
                 <span class="text-[9px] font-medium tracking-wider uppercase">Draft</span>
             </button>
 
-            <button class="nav-item flex flex-col items-center justify-center space-y-1 text-slate-400 transition-colors duration-200 w-full" hx-get="/web/leaderboard_view" hx-target="#main-content">
+            <button class="nav-item flex flex-col items-center justify-center space-y-1 text-slate-400 dark:text-slate-500 transition-colors duration-200 w-full" hx-get="/web/leaderboard_view" hx-target="#main-content">
                 <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
                 </svg>
@@ -94,6 +136,13 @@
     </nav>
 
     <script>
+        // Init theme icons state on load
+        if (document.documentElement.classList.contains('dark')) {
+            document.getElementById('theme-toggle-light-icon').classList.remove('hidden');
+        } else {
+            document.getElementById('theme-toggle-dark-icon').classList.remove('hidden');
+        }
+
         document.body.addEventListener('htmx:afterOnLoad', function(e) {
             if(navigator.vibrate) navigator.vibrate(5);
         });
@@ -109,11 +158,11 @@
                 if(navigator.vibrate) navigator.vibrate(5);
                 document.querySelectorAll('.nav-item').forEach(b => {
                     b.classList.remove('active');
-                    b.classList.add('text-slate-400');
-                    b.classList.remove('text-slate-800');
+                    b.classList.add('text-slate-400', 'dark:text-slate-500');
+                    b.classList.remove('text-slate-800', 'dark:text-slate-100');
                 });
-                this.classList.add('active', 'text-slate-800');
-                this.classList.remove('text-slate-400');
+                this.classList.add('active', 'text-slate-800', 'dark:text-slate-100');
+                this.classList.remove('text-slate-400', 'dark:text-slate-500');
             });
         });
     </script>
