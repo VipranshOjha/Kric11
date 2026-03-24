@@ -24,6 +24,11 @@
                 {{ error }}
             </div>
         {% endif %}
+        
+        <div class="mb-6">
+            <h2 class="text-xl font-medium text-slate-800">{% if is_register %}Create Account{% else %}Sign In to Kric11{% endif %}</h2>
+            <p class="text-sm text-slate-500 mt-1">{% if is_register %}Welcome! Let's get you started.{% else %}Welcome back! Please enter your details.{% endif %}</p>
+        </div>
 
         <form method="POST" action="{% if is_register %}/web/register{% else %}/web/login{% endif %}" class="space-y-5">
             <div>
