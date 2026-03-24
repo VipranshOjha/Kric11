@@ -2,8 +2,8 @@ name: Sync Fantasy Scores
 
 on:
   schedule:
-    - cron: '*/1 * * * *'  # Every minute (free on GitHub Actions)
-  workflow_dispatch:        # Manual trigger for testing
+    - cron: '*/1 * * * *'  
+  workflow_dispatch:       
 
 jobs:
   sync:

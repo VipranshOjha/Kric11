@@ -15,7 +15,9 @@ app = FastAPI(
 )
 
 from app.web import router as web_router
+from app.cron import router as cron_router
 app.include_router(web_router)
+app.include_router(cron_router)
 
 app.add_middleware(
     CORSMiddleware,
