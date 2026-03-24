@@ -241,26 +241,33 @@ async def _update_leaderboard(match_api_id: str):
     Recalculate each user's total fantasy points based on their drafted
     players' real performance data. Applies Captain (2x) and VC (1.5x).
     """
-    # Get all locked fantasy teams
+    # Find the contest_id for this match
+    contest_id = await db.fetchval("SELECT id FROM contests WHERE match_api_id = $1", match_api_id)
+    if not contest_id:
+        log.warning(f"No contest found for match {match_api_id}")
+        return 0
+
+    # Get all locked fantasy teams for this contest
     teams = await db.fetch("""
         SELECT ft.id as ft_id, ft.user_id
         FROM fantasy_teams ft
-    """)
+        WHERE ft.contest_id = $1
+    """, contest_id)
 
     for team in teams:
         user_id = team["user_id"]
 
-        # Get the user's drafted players with C/VC flags
+        # Get the user's drafted players with C/VC flags for this contest
         drafts = await db.fetch("""
             SELECT ud.player_id, ud.is_captain, ud.is_vice_captain, p.name as player_name
             FROM user_drafts ud
             JOIN players p ON ud.player_id = p.id
-            WHERE ud.user_id = $1
-        """, user_id)
+            WHERE ud.user_id = $1 AND ud.contest_id = $2
+        """, user_id, contest_id)
 
         total = 0.0
         for d in drafts:
-            # Match by player name (fuzzy — our DB name vs API name)
+            # Match by player name
             perf = await db.fetchrow("""
                 SELECT total_points FROM player_match_performances
                 WHERE match_api_id = $1 AND player_name ILIKE $2
@@ -274,8 +281,8 @@ async def _update_leaderboard(match_api_id: str):
                     pts *= 1.5
                 total += pts
 
-        # Update the fantasy team's total
-        await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2", total, user_id)
+        # Update the fantasy team's total for this contest
+        await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2 AND contest_id = $3", total, user_id, contest_id)
 
     return len(teams)
 
