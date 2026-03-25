@@ -89,6 +89,13 @@ def _get_active_contest(request: Request):
         return int(c)
     return None
 
+async def _is_match_locked(contest_id: int) -> bool:
+    if not contest_id: return False
+    start_time = await db.fetchval("SELECT start_time FROM contests WHERE id = $1", contest_id)
+    if start_time and datetime.now(timezone.utc) >= start_time:
+        return True
+    return False
+
 async def _get_draft_state(user_id, contest_id):
     if not contest_id: return [], None, None
     draft_rows = await db.fetch(
@@ -238,9 +245,9 @@ async def create_test_contest(request: Request):
                      
                 # Insert Contest
                 c_id = await db.fetchval("""
-                    INSERT INTO contests (name, match_api_id, team1_id, team2_id, match_date, venue, status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-                """, m["name"], m["id"], t1_id, t2_id, m["date"], m["venue"], m["status"])
+                    INSERT INTO contests (name, match_api_id, team1_id, team2_id, match_date, venue, status, start_time)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+                """, m["name"], m["id"], t1_id, t2_id, m.get("date", ""), m.get("venue", ""), m.get("status", ""), datetime.now(timezone.utc) + timedelta(minutes=10))
                 
                 # Fetch dummy players? Left out for brevity.
                 return HTMLResponse(f"""<div id="toast-container" hx-swap-oob="true">
@@ -277,6 +284,9 @@ async def builder_page(request: Request):
 
     draft, captain_id, vc_id = await _get_draft_state(user_id, contest_id)
     credits_used = sum(p["credits"] for p in players if p["id"] in draft)
+    
+    match_started = await _is_match_locked(contest_id)
+    roster_locked = await db.fetchval("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
 
     return templates.TemplateResponse("components/builder.html", {
         "request": request,
@@ -286,7 +296,9 @@ async def builder_page(request: Request):
         "vc_id": vc_id,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
         "count": len(draft),
-        "toast": ""
+        "toast": "",
+        "match_started": match_started,
+        "roster_locked": bool(roster_locked)
     })
 
 @router.post("/toggle/{player_id}", response_class=HTMLResponse)
@@ -296,6 +308,13 @@ async def toggle_player(request: Request, player_id: int):
     
     contest_id = _get_active_contest(request)
     if not contest_id: return HTMLResponse(status_code=400)
+    
+    if await _is_match_locked(contest_id):
+        return HTMLResponse(_toast("Match has already started. Edits disabled.", "error"))
+
+    roster_locked = await db.fetchval("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
+    if roster_locked:
+        return HTMLResponse(_toast("Roster is already locked.", "error"))
 
     player = await db.fetchrow("""
         SELECT p.id, p.name, p.role, p.credit_value as credits, t.abbreviation as team
@@ -345,7 +364,9 @@ async def toggle_player(request: Request, player_id: int):
         "vc_id": vc_id,
         "credits_left": round(BUDGET_LIMIT - credits_used, 1),
         "count": len(draft),
-        "toast": toast_html
+        "toast": toast_html,
+        "match_started": False,
+        "roster_locked": False
     })
 
 @router.post("/set_role/{player_id}/{role}", response_class=HTMLResponse)
@@ -355,6 +376,13 @@ async def set_captain_vc(request: Request, player_id: int, role: str):
     
     contest_id = _get_active_contest(request)
     if not contest_id: return HTMLResponse(status_code=400)
+
+    if await _is_match_locked(contest_id):
+        return HTMLResponse(_toast("Match has already started. Edits disabled.", "error"))
+        
+    roster_locked = await db.fetchval("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
+    if roster_locked:
+        return HTMLResponse(_toast("Roster is already locked.", "error"))
 
     in_draft = await db.fetchrow("SELECT id FROM user_drafts WHERE user_id = $1 AND contest_id = $2 AND player_id = $3", 
                                  user_id, contest_id, player_id)
@@ -371,6 +399,44 @@ async def set_captain_vc(request: Request, player_id: int, role: str):
     return await builder_page(request)
 
 
+@router.post("/confirm_team", response_class=HTMLResponse)
+async def confirm_team(request: Request):
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
+    
+    contest_id = _get_active_contest(request)
+    if not contest_id: return HTMLResponse(status_code=400)
+
+    if await _is_match_locked(contest_id):
+        return HTMLResponse(_toast("Match has already started. Edits disabled.", "error"))
+
+    draft_rows = await db.fetch("""
+        SELECT ud.is_captain, ud.is_vice_captain, p.name as player_name, p.role
+        FROM user_drafts ud JOIN players p ON ud.player_id = p.id
+        WHERE ud.user_id = $1 AND ud.contest_id = $2
+    """, user_id, contest_id)
+    
+    if len(draft_rows) != 12:
+        return HTMLResponse(_toast(f"Select exactly 12 players ({len(draft_rows)}/12)", "error"))
+
+    c_player = next((p for p in draft_rows if p["is_captain"]), None)
+    vc_player = next((p for p in draft_rows if p["is_vice_captain"]), None)
+    
+    if not c_player or not vc_player:
+        return HTMLResponse(_toast("Set a Captain and Vice-Captain first", "error"))
+
+    existing = await db.fetchrow("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
+    if existing:
+        return HTMLResponse(_toast("Roster already locked", "error"))
+
+    return templates.TemplateResponse("components/confirm_modal.html", {
+        "request": request,
+        "players": draft_rows,
+        "c_player": c_player,
+        "vc_player": vc_player
+    })
+
+
 @router.post("/save_team", response_class=HTMLResponse)
 async def save_team(request: Request):
     username, user_id = await _get_user_id(request)
@@ -379,18 +445,22 @@ async def save_team(request: Request):
     contest_id = _get_active_contest(request)
     if not contest_id: return HTMLResponse(status_code=400)
 
+    if await _is_match_locked(contest_id):
+        return HTMLResponse(_toast("Match has already started. Edits disabled.", "error"))
+
     draft_rows = await db.fetch("SELECT player_id, is_captain, is_vice_captain FROM user_drafts WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
     if len(draft_rows) != 12:
-        return HTMLResponse(f"<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Select exactly 12 players ({len(draft_rows)}/12)</div>")
+        return HTMLResponse(_toast(f"Select exactly 12 players ({len(draft_rows)}/12)", "error"))
 
     has_c = any(r["is_captain"] for r in draft_rows)
     has_vc = any(r["is_vice_captain"] for r in draft_rows)
     if not has_c or not has_vc:
-        return HTMLResponse("<div id='save-status' class='bg-red-50 text-red-500 border border-red-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Set a Captain and Vice-Captain first</div>")
+        return HTMLResponse(_toast("Set a Captain and Vice-Captain first", "error"))
 
     existing = await db.fetchrow("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
     if existing:
-        return HTMLResponse("<div id='save-status' class='bg-amber-50 text-amber-600 border border-amber-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>Roster already locked</div>")
+        # If it already exists, gracefully ignore or output toast
+        return HTMLResponse(_toast("Roster already locked", "error"))
 
     await db.execute("INSERT INTO fantasy_teams (user_id, contest_id) VALUES ($1, $2)", user_id, contest_id)
     
@@ -420,7 +490,20 @@ async def save_team(request: Request):
                 
         await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2 AND contest_id = $3", total, user_id, contest_id)
 
-    return HTMLResponse("<div id='save-status' class='bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 mt-4 rounded-2xl text-center text-xs font-medium tracking-wider slide-in'>✓ Roster locked successfully</div>")
+    # Return the entire builder page to reflect the locked state
+    # Wait, the frontend might just replace the modal/button, let's trigger an htmx redirect or refresh
+    return HTMLResponse("""
+        <div id="toast-container" hx-swap-oob="true">
+            <div class="fixed top-20 left-1/2 -translate-x-1/2 z-[999] max-w-xs w-full px-5 py-3 rounded-2xl
+                bg-emerald-50 text-emerald-600 border border-emerald-100 text-xs font-medium tracking-wider text-center shadow-sm slide-in">
+                ✓ Roster locked successfully
+            </div>
+        </div>
+        <script>
+            setTimeout(() => document.getElementById('toast-container').innerHTML='', 2500);
+            htmx.ajax('GET', '/web/builder', '#main-content');
+        </script>
+    """)
 
 
 @router.get("/leaderboard_view", response_class=HTMLResponse)
@@ -434,12 +517,62 @@ async def leaderboard_view(request: Request):
 
     teams = await db.fetch("""
         SELECT u.username, ft.total_points,
-            (SELECT COUNT(*) FROM user_drafts ud WHERE ud.user_id = u.id AND ud.contest_id = $1) as player_count
+            (SELECT COUNT(*) FROM user_drafts ud WHERE ud.user_id = u.id AND ud.contest_id = $1) as detail_count
         FROM fantasy_teams ft JOIN users u ON ft.user_id = u.id
         WHERE ft.contest_id = $1
         ORDER BY ft.total_points DESC
     """, contest_id)
 
     return templates.TemplateResponse("components/leaderboard.html", {
-        "request": request, "teams": teams, "username": username
+        "request": request, "teams": teams, "username": username, "is_global": False
+    })
+
+
+@router.get("/global_leaderboard_view", response_class=HTMLResponse)
+async def global_leaderboard_view(request: Request):
+    username = _get_username(request)
+    if not username: return _auth_redirect(request)
+    
+    # Aggregate points across all fantasy teams for the user
+    teams = await db.fetch("""
+        SELECT u.username, COALESCE(SUM(ft.total_points), 0.0) as total_points, COUNT(ft.id) as detail_count
+        FROM users u
+        LEFT JOIN fantasy_teams ft ON u.id = ft.user_id
+        GROUP BY u.id, u.username
+        ORDER BY total_points DESC
+    """)
+
+    return templates.TemplateResponse("components/leaderboard.html", {
+        "request": request, "teams": teams, "username": username, "is_global": True
+    })
+
+@router.get("/players", response_class=HTMLResponse)
+async def players_hub(request: Request):
+    username = _get_username(request)
+    if not username: return _auth_redirect(request)
+
+    # Note: Using COALESCE on numeric aggregations for safety
+    stats = await db.fetch("""
+        SELECT player_name, 
+               COUNT(DISTINCT match_api_id) as matches_played,
+               COALESCE(SUM(runs), 0) as total_runs,
+               COALESCE(SUM(wickets), 0) as total_wickets,
+               COALESCE(SUM(sixes), 0) as total_sixes,
+               COALESCE(SUM(total_points), 0.0) as total_points
+        FROM player_match_performances
+        GROUP BY player_name
+        ORDER BY total_points DESC
+    """)
+
+    players = [dict(r) for r in stats]
+    orange_cap = max(players, key=lambda x: x["total_runs"]) if players else None
+    purple_cap = max(players, key=lambda x: x["total_wickets"]) if players else None
+    max_sixes = max(players, key=lambda x: x["total_sixes"]) if players else None
+
+    return templates.TemplateResponse("components/players.html", {
+        "request": request,
+        "players": players,
+        "orange_cap": orange_cap,
+        "purple_cap": purple_cap,
+        "max_sixes": max_sixes
     })

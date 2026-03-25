@@ -1,0 +1,79 @@
+<div class="slide-in pb-10">
+    <h2 class="text-lg font-medium text-slate-700 dark:text-slate-200 text-center mb-6">Season Hub</h2>
+
+    <!-- Season Awards Highlight Cards -->
+    <div class="flex overflow-x-auto space-x-4 pb-4 mb-6 hide-scrollbar px-1">
+        <!-- Orange Cap -->
+        <div class="min-w-[140px] flex-shrink-0 bg-white dark:bg-slate-900 rounded-3xl p-4 shadow-sm border border-orange-100 dark:border-orange-900/40 relative overflow-hidden group">
+            <div class="absolute -right-4 -top-4 w-16 h-16 bg-orange-50 dark:bg-orange-500/10 rounded-full group-hover:scale-110 transition-transform"></div>
+            <p class="text-[10px] font-semibold tracking-wider text-orange-500 uppercase mb-2">Orange Cap</p>
+            {% if orange_cap %}
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{{ orange_cap.player_name }}</h3>
+            <p class="text-2xl font-light text-slate-700 dark:text-slate-200 mt-1">{{ orange_cap.total_runs }}<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 ml-1">runs</span></p>
+            {% else %}
+            <p class="text-xs text-slate-400 dark:text-slate-500">No data</p>
+            {% endif %}
+        </div>
+
+        <!-- Purple Cap -->
+        <div class="min-w-[140px] flex-shrink-0 bg-white dark:bg-slate-900 rounded-3xl p-4 shadow-sm border border-purple-100 dark:border-purple-900/40 relative overflow-hidden group">
+            <div class="absolute -right-4 -top-4 w-16 h-16 bg-purple-50 dark:bg-purple-500/10 rounded-full group-hover:scale-110 transition-transform"></div>
+            <p class="text-[10px] font-semibold tracking-wider text-purple-500 uppercase mb-2">Purple Cap</p>
+            {% if purple_cap %}
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{{ purple_cap.player_name }}</h3>
+            <p class="text-2xl font-light text-slate-700 dark:text-slate-200 mt-1">{{ purple_cap.total_wickets }}<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 ml-1">wkts</span></p>
+            {% else %}
+            <p class="text-xs text-slate-400 dark:text-slate-500">No data</p>
+            {% endif %}
+        </div>
+
+        <!-- Most Sixes -->
+        <div class="min-w-[140px] flex-shrink-0 bg-white dark:bg-slate-900 rounded-3xl p-4 shadow-sm border border-blue-100 dark:border-blue-900/40 relative overflow-hidden group">
+            <div class="absolute -right-4 -top-4 w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-full group-hover:scale-110 transition-transform"></div>
+            <p class="text-[10px] font-semibold tracking-wider text-blue-500 uppercase mb-2">Most Sixes</p>
+            {% if max_sixes %}
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{{ max_sixes.player_name }}</h3>
+            <p class="text-2xl font-light text-slate-700 dark:text-slate-200 mt-1">{{ max_sixes.total_sixes }}<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 ml-1">sixes</span></p>
+            {% else %}
+            <p class="text-xs text-slate-400 dark:text-slate-500">No data</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stats Table -->
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-800 overflow-x-auto">
+        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 tracking-wide mb-4">Player Form</h3>
+        
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-[10px] font-medium tracking-wider text-slate-400 dark:text-slate-500 uppercase border-b border-slate-100 dark:border-slate-800">
+                    <th class="pb-3 pl-1">Player</th>
+                    <th class="pb-3 text-center">M</th>
+                    <th class="pb-3 text-center">R</th>
+                    <th class="pb-3 text-center">W</th>
+                    <th class="pb-3 text-right pr-1">Pts</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm">
+                {% for p in players %}
+                <tr class="border-b border-slate-50 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="py-3 pl-1 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{{ p.player_name }}</td>
+                    <td class="py-3 text-center text-slate-500 dark:text-slate-400">{{ p.matches_played }}</td>
+                    <td class="py-3 text-center text-slate-500 dark:text-slate-400">{{ p.total_runs }}</td>
+                    <td class="py-3 text-center text-slate-500 dark:text-slate-400">{{ p.total_wickets }}</td>
+                    <td class="py-3 text-right pr-1 font-semibold text-slate-700 dark:text-slate-200">{{ "%.1f"|format(p.total_points) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="py-8 text-center text-xs text-slate-400 dark:text-slate-500">No performances recorded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <style>
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</div>

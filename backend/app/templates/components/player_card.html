@@ -25,7 +25,7 @@
         </div>
 
             <!-- Credit + Actions -->
-        <div class="flex items-center space-x-2 flex-shrink-0">
+        <div class="flex items-center space-x-2 flex-shrink-0 {% if match_started or roster_locked %}opacity-50 pointer-events-none{% endif %}">
             <div class="text-right mr-1">
                 <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ p.credits }}</p>
                 <p class="text-[9px] text-slate-300 dark:text-slate-600 font-medium tracking-wider uppercase">cr</p>

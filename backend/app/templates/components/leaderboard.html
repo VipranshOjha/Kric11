@@ -1,10 +1,25 @@
 <div class="slide-in space-y-3">
-    <h2 class="text-lg font-medium text-slate-700 dark:text-slate-200 text-center mb-6">Standings</h2>
+    <h2 class="text-lg font-medium text-slate-700 dark:text-slate-200 text-center mb-4">Standings</h2>
     
+    <!-- Sub-tabs -->
+    <div class="flex items-center justify-center p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl mb-6 max-w-xs mx-auto">
+        <button hx-get="/web/leaderboard_view" hx-target="#main-content" hx-swap="innerHTML" class="flex-1 py-1.5 text-[11px] font-medium tracking-wider uppercase rounded-lg transition-all {% if not is_global %}bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm{% else %}text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300{% endif %}">
+            Current Match
+        </button>
+        <button hx-get="/web/global_leaderboard_view" hx-target="#main-content" hx-swap="innerHTML" class="flex-1 py-1.5 text-[11px] font-medium tracking-wider uppercase rounded-lg transition-all {% if is_global %}bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm{% else %}text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300{% endif %}">
+            Overall
+        </button>
+    </div>
+
     {% if not teams %}
         <div class="bg-white dark:bg-slate-900 rounded-3xl p-10 text-center shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-            <p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No rosters locked yet</p>
-            <p class="text-xs text-slate-300 dark:text-slate-600 mt-1">Be the first to submit your squad.</p>
+            {% if is_global %}
+                <p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No points scored yet</p>
+                <p class="text-xs text-slate-300 dark:text-slate-600 mt-1">Play matches to climb the global ranks.</p>
+            {% else %}
+                <p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No rosters locked yet</p>
+                <p class="text-xs text-slate-300 dark:text-slate-600 mt-1">Be the first to submit your squad.</p>
+            {% endif %}
         </div>
     {% endif %}
     
@@ -23,7 +38,9 @@
                 </div>
                 <div>
                     <h3 class="font-medium text-sm text-slate-700 dark:text-slate-200">{{ t.username }}</h3>
-                    <p class="text-[10px] text-slate-400 dark:text-slate-500 tracking-wider">{{ t.player_count }} players</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 tracking-wider">
+                        {% if is_global %}{{ t.detail_count }} matches{% else %}{{ t.detail_count }} players{% endif %}
+                    </p>
                 </div>
             </div>
             

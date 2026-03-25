@@ -37,7 +37,7 @@
     </div>
 
     <!-- Role Filter Tabs -->
-    <div id="role-tabs" class="flex items-center space-x-2 mb-5 overflow-x-auto pb-1">
+    <div id="role-tabs" class="flex items-center space-x-2 mb-5 overflow-x-auto pb-1 {% if match_started or roster_locked %}opacity-50 pointer-events-none{% endif %}">
         <button onclick="filterRole('ALL')" data-role="ALL"
             class="role-tab active-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap
             bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border border-transparent">
@@ -77,11 +77,22 @@
 
     <!-- Lock In -->
     <div id="save-status" class="mt-4"></div>
-    <button hx-post="/web/save_team" hx-target="#save-status" hx-swap="outerHTML"
-        class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200 shadow-sm
-        {% if count == 12 and captain_id and vc_id %}bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 active:scale-[0.98]{% else %}bg-slate-200 dark:bg-slate-800/50 text-slate-400 dark:text-slate-600 cursor-not-allowed{% endif %}">
-        Lock in roster
-    </button>
+    {% if match_started or roster_locked %}
+        <div class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase text-center shadow-sm 
+        bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+            {% if match_started %}
+                🔒 Match Started - Teams Locked
+            {% else %}
+                🔒 Roster Locked
+            {% endif %}
+        </div>
+    {% else %}
+        <button hx-post="/web/confirm_team" hx-target="#builder-container" hx-swap="beforeend"
+            class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200 shadow-sm
+            {% if count == 12 and captain_id and vc_id %}bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 active:scale-[0.98]{% else %}bg-slate-200 dark:bg-slate-800/50 text-slate-400 dark:text-slate-600 pointer-events-none cursor-not-allowed{% endif %}">
+            Review Roster
+        </button>
+    {% endif %}
 </div>
 
 <script>
