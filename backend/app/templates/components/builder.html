@@ -1,22 +1,28 @@
 <div id="builder-container" class="slide-in">
     <!-- Pinned Stats -->
-    <div id="stats-panel" class="flex items-center justify-between py-3 mb-4 border-b border-slate-100 dark:border-slate-800 transition-colors">
+    <div id="stats-panel"
+        class="flex items-center justify-between py-3 mb-4 border-b border-slate-100 dark:border-slate-800 transition-colors">
         <div class="text-center flex-1">
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Players</p>
-            <p class="text-xl font-semibold {% if count == 12 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Players
+            </p>
+            <p
+                class="text-xl font-semibold {% if count == 12 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
                 {{ count }}<span class="text-sm font-normal text-slate-300 dark:text-slate-600"> / 12</span>
             </p>
         </div>
         <div class="h-6 w-px bg-slate-100 dark:bg-slate-800"></div>
         <div class="text-center flex-1">
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Credits Left</p>
-            <p class="text-xl font-semibold {% if credits_left < 10 %}text-red-500 dark:text-red-400{% elif credits_left < 25 %}text-amber-500 dark:text-amber-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Credits
+                Left</p>
+            <p
+                class="text-xl font-semibold {% if credits_left < 10 %}text-red-500 dark:text-red-400{% elif credits_left < 25 %}text-amber-500 dark:text-amber-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
                 {{ credits_left }}
             </p>
         </div>
         <div class="h-6 w-px bg-slate-100 dark:bg-slate-800"></div>
         <div class="text-center flex-1">
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Budget</p>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase mb-1">Budget
+            </p>
             <p class="text-xl font-semibold text-slate-300 dark:text-slate-600">100</p>
         </div>
     </div>
@@ -24,28 +30,29 @@
     <!-- C/VC Status -->
     <div class="flex items-center justify-center space-x-4 mb-4 text-[10px] font-medium tracking-wider">
         <span class="flex items-center space-x-1.5">
-            <span class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold transition-colors
+            <span
+                class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold transition-colors
                 {% if captain_id %}bg-indigo-500 text-white{% else %}bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600{% endif %}">C</span>
-            <span class="{% if captain_id %}text-slate-600 dark:text-slate-300{% else %}text-slate-300 dark:text-slate-600{% endif %}">Captain (2x)</span>
+            <span
+                class="{% if captain_id %}text-slate-600 dark:text-slate-300{% else %}text-slate-300 dark:text-slate-600{% endif %}">Captain
+                (2x)</span>
         </span>
         <span class="text-slate-200 dark:text-slate-700">·</span>
         <span class="flex items-center space-x-1.5">
-            <span class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold transition-colors
+            <span
+                class="h-5 w-5 rounded-md flex items-center justify-center text-[9px] font-bold transition-colors
                 {% if vc_id %}bg-violet-400 text-white{% else %}bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600{% endif %}">VC</span>
-            <span class="{% if vc_id %}text-slate-600 dark:text-slate-300{% else %}text-slate-300 dark:text-slate-600{% endif %}">Vice-Cap (1.5x)</span>
+            <span
+                class="{% if vc_id %}text-slate-600 dark:text-slate-300{% else %}text-slate-300 dark:text-slate-600{% endif %}">Vice-Cap
+                (1.5x)</span>
         </span>
     </div>
 
     <!-- Role Filter Tabs -->
-    <div id="role-tabs" class="flex items-center space-x-2 mb-5 overflow-x-auto pb-1 {% if match_started or roster_locked %}opacity-50 pointer-events-none{% endif %}">
-        <button onclick="filterRole('ALL')" data-role="ALL"
-            class="role-tab active-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap
-            bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border border-transparent">
-            All
-        </button>
+    <div id="role-tabs"
+        class="flex items-center space-x-2 mb-5 overflow-x-auto pb-1 {% if match_started or roster_locked %}opacity-50 pointer-events-none{% endif %}">
         <button onclick="filterRole('WK')" data-role="WK"
-            class="role-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap
-            bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300">
+            class="role-tab active-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border border-transparent">
             WK
         </button>
         <button onclick="filterRole('BAT')" data-role="BAT"
@@ -68,51 +75,54 @@
     <!-- Player Cards -->
     <div id="player-list" class="space-y-3">
         {% for p in players %}
-            {% set is_selected = p.id in draft %}
-            <div class="player-role-card" data-role="{{ p.role }}">
-                {% include 'components/player_card.html' %}
-            </div>
+        {% set is_selected = p.id in draft %}
+        <div class="player-role-card" data-role="{{ p.role }}">
+            {% include 'components/player_card.html' %}
+        </div>
         {% endfor %}
     </div>
 
     <!-- Lock In -->
     <div id="save-status" class="mt-4"></div>
     {% if match_started or roster_locked %}
-        <div class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase text-center shadow-sm 
+    <div
+        class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase text-center shadow-sm 
         bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
-            {% if match_started %}
-                🔒 Match Started - Teams Locked
-            {% else %}
-                🔒 Roster Locked
-            {% endif %}
-        </div>
+        {% if match_started %}
+        🔒 Match Started - Teams Locked
+        {% else %}
+        🔒 Roster Locked
+        {% endif %}
+    </div>
     {% else %}
-        <button hx-post="/web/confirm_team" hx-target="#builder-container" hx-swap="beforeend"
-            class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200 shadow-sm
+    <button hx-post="/web/confirm_team" hx-target="#builder-container" hx-swap="beforeend"
+        class="w-full mt-4 py-4 rounded-2xl font-medium text-sm tracking-wider uppercase transition-all duration-200 shadow-sm
             {% if count == 12 and captain_id and vc_id %}bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 active:scale-[0.98]{% else %}bg-slate-200 dark:bg-slate-800/50 text-slate-400 dark:text-slate-600 pointer-events-none cursor-not-allowed{% endif %}">
-            Review Roster
-        </button>
+        Review Roster
+    </button>
     {% endif %}
 </div>
 
 <script>
-function filterRole(role) {
-    // Update tab styles
-    document.querySelectorAll('.role-tab').forEach(function(tab) {
-        if (tab.getAttribute('data-role') === role) {
-            tab.className = 'role-tab active-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border border-transparent';
-        } else {
-            tab.className = 'role-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300';
-        }
-    });
-    // Show/hide player cards
-    document.querySelectorAll('.player-role-card').forEach(function(card) {
-        if (role === 'ALL' || card.getAttribute('data-role') === role) {
-            card.style.display = '';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-    if(navigator.vibrate) navigator.vibrate(3);
-}
+    function filterRole(role) {
+        // Update tab styles
+        document.querySelectorAll('.role-tab').forEach(function (tab) {
+            if (tab.getAttribute('data-role') === role) {
+                tab.className = 'role-tab active-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border border-transparent';
+            } else {
+                tab.className = 'role-tab px-4 py-2 rounded-2xl text-[11px] font-semibold tracking-wider uppercase transition-all duration-150 whitespace-nowrap bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300';
+            }
+        });
+        // Show/hide player cards
+        document.querySelectorAll('.player-role-card').forEach(function (card) {
+            if (card.getAttribute('data-role') === role) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        if (navigator.vibrate) navigator.vibrate(3);
+    }
+    // Trigger filter on load
+    filterRole('WK');
 </script>

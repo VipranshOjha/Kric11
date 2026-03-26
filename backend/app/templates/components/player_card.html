@@ -1,10 +1,13 @@
 <!-- Player Card — Scandinavian Flat with C/VC selection -->
 <div id="player-card-{{ p.id }}"
-     class="bg-white dark:bg-slate-900 rounded-3xl p-4 transition-all duration-200 ease-out
+     class="bg-white dark:bg-slate-900 rounded-3xl p-4 transition-all duration-200 ease-out relative overflow-hidden
      {% if captain_id == p.id %}border-2 border-indigo-400 dark:border-indigo-500 shadow-md{% elif vc_id == p.id %}border-2 border-violet-300 dark:border-violet-500 shadow-md{% elif is_selected %}border-2 border-slate-600 dark:border-slate-500 shadow-sm{% else %}border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md dark:hover:border-slate-700{% endif %}">
     
+    <!-- Team Color Pill -->
+    <div class="absolute left-0 top-0 bottom-0 w-1.5 team-bg-{{ p.team }}"></div>
+
     <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-4 flex-1 min-w-0">
+        <div class="flex items-center space-x-4 flex-1 min-w-0 pl-1.5">
             <!-- Avatar with C/VC badge -->
             <div class="relative">
                 <div class="h-10 w-10 rounded-2xl flex items-center justify-center font-medium text-sm flex-shrink-0
@@ -84,5 +87,18 @@
         <p class="text-xl font-semibold text-slate-300 dark:text-slate-600">100</p>
     </div>
 </div>
+
+<style>
+  .team-bg-CSK { background-color: #eab308; }
+  .team-bg-MI { background-color: #0ea5e9; }
+  .team-bg-RCB { background-color: #ef4444; }
+  .team-bg-KKR { background-color: #a855f7; }
+  .team-bg-SRH { background-color: #f97316; }
+  .team-bg-DC { background-color: #3b82f6; }
+  .team-bg-RR { background-color: #ec4899; }
+  .team-bg-PBKS { background-color: #dc2626; }
+  .team-bg-LSG { background-color: #14b8a6; }
+  .team-bg-GT { background-color: #6366f1; }
+</style>
 
 {{ toast|safe }}
