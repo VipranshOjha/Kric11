@@ -429,16 +429,27 @@ async def confirm_team(request: Request):
     if existing:
         return HTMLResponse(_toast("Roster already locked", "error"))
 
+    # Fetch Contest Teams for the Prediction Radio Input
+    contest = await db.fetchrow("""
+        SELECT t1.id as t1_id, t1.abbreviation as t1_abbr, 
+               t2.id as t2_id, t2.abbreviation as t2_abbr
+        FROM contests c 
+        JOIN teams t1 ON c.team1_id = t1.id 
+        JOIN teams t2 ON c.team2_id = t2.id 
+        WHERE c.id = $1
+    """, contest_id)
+
     return templates.TemplateResponse("components/confirm_modal.html", {
         "request": request,
         "players": draft_rows,
         "c_player": c_player,
-        "vc_player": vc_player
+        "vc_player": vc_player,
+        "contest": contest
     })
 
 
 @router.post("/save_team", response_class=HTMLResponse)
-async def save_team(request: Request):
+async def save_team(request: Request, predicted_winner: int = Form(...)):
     username, user_id = await _get_user_id(request)
     if not user_id: return _auth_redirect(request)
     
@@ -462,7 +473,7 @@ async def save_team(request: Request):
         # If it already exists, gracefully ignore or output toast
         return HTMLResponse(_toast("Roster already locked", "error"))
 
-    await db.execute("INSERT INTO fantasy_teams (user_id, contest_id) VALUES ($1, $2)", user_id, contest_id)
+    await db.execute("INSERT INTO fantasy_teams (user_id, contest_id, predicted_winner_id) VALUES ($1, $2, $3)", user_id, contest_id, predicted_winner)
     
     # Instantly calculate points if the match is already synced
     contest = await db.fetchrow("SELECT match_api_id FROM contests WHERE id = $1", contest_id)
@@ -541,7 +552,7 @@ async def leaderboard_view(request: Request):
         return HTMLResponse("<div class='p-8 text-center text-slate-500'>Please select a contest from Home first.</div>")
 
     teams = await db.fetch("""
-        SELECT u.username, ft.total_points,
+        SELECT u.id as user_id, u.username, ft.total_points,
             (SELECT COUNT(*) FROM user_drafts ud WHERE ud.user_id = u.id AND ud.contest_id = $1) as detail_count
         FROM fantasy_teams ft JOIN users u ON ft.user_id = u.id
         WHERE ft.contest_id = $1
@@ -549,7 +560,7 @@ async def leaderboard_view(request: Request):
     """, contest_id)
 
     return templates.TemplateResponse("components/leaderboard.html", {
-        "request": request, "teams": teams, "username": username, "is_global": False
+        "request": request, "teams": teams, "username": username, "is_global": False, "contest_id": contest_id
     })
 
 
@@ -558,20 +569,24 @@ async def global_leaderboard_view(request: Request):
     username = _get_username(request)
     if not username: return _auth_redirect(request)
     
-    # Aggregate tournament points based on rank per match
+    # Aggregate tournament points based on rank per match + prediction bonus
     teams = await db.fetch("""
         WITH MatchRanks AS (
             SELECT 
-                user_id, 
-                contest_id,
-                RANK() OVER(PARTITION BY contest_id ORDER BY total_points DESC) as rnk
-            FROM fantasy_teams
-            WHERE total_points > 0
+                ft.user_id, 
+                ft.contest_id,
+                ft.predicted_winner_id,
+                c.actual_winner_id,
+                RANK() OVER(PARTITION BY ft.contest_id ORDER BY ft.total_points DESC) as rnk
+            FROM fantasy_teams ft
+            JOIN contests c ON ft.contest_id = c.id
+            WHERE ft.total_points > 0
         ),
         TournamentPoints AS (
             SELECT 
                 user_id,
-                GREATEST(11 - rnk, 0) as tourney_pts
+                GREATEST(11 - rnk, 0) + 
+                (CASE WHEN predicted_winner_id = actual_winner_id AND actual_winner_id IS NOT NULL THEN 2 ELSE 0 END) as tourney_pts
             FROM MatchRanks
         )
         SELECT 
@@ -617,4 +632,35 @@ async def players_hub(request: Request):
         "orange_cap": orange_cap,
         "purple_cap": purple_cap,
         "max_sixes": max_sixes
+    })
+
+@router.get("/team/{contest_id}/user/{target_user_id}", response_class=HTMLResponse)
+async def view_opponent_team(request: Request, contest_id: int, target_user_id: int):
+    username, user_id = await _get_user_id(request)
+    if not user_id: return _auth_redirect(request)
+    
+    # Privacy Check: Current user must have locked their own team
+    self_locked = await db.fetchrow("SELECT id FROM fantasy_teams WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
+    if not self_locked:
+        return HTMLResponse(_toast("You must lock in your own team before viewing others!", "error"), status_code=403)
+        
+    opponent_username = await db.fetchval("SELECT username FROM users WHERE id = $1", target_user_id)
+    
+    # Fetch target user's team
+    players = await db.fetch("""
+        SELECT p.name, p.role, ud.is_captain, ud.is_vice_captain, t.abbreviation as team
+        FROM user_drafts ud 
+        JOIN players p ON ud.player_id = p.id
+        JOIN teams t ON p.team_id = t.id
+        WHERE ud.user_id = $1 AND ud.contest_id = $2
+        ORDER BY p.role, p.name
+    """, target_user_id, contest_id)
+    
+    if not players:
+        return HTMLResponse(_toast("This user hasn't locked a team yet.", "info"))
+        
+    return templates.TemplateResponse("components/opponent_modal.html", {
+        "request": request,
+        "players": players,
+        "opponent_username": opponent_username
     })

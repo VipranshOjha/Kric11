@@ -1,3 +1,4 @@
+<div id="modal-container"></div>
 <div class="slide-in space-y-3">
     <h2 class="text-lg font-medium text-slate-700 dark:text-slate-200 text-center mb-4">Standings</h2>
     
@@ -35,7 +36,8 @@
     
     {% for t in teams %}
         {% set rank = loop.index %}
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-4 flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-800 transition-colors
+        <div {% if not is_global %}hx-get="/web/team/{{ contest_id }}/user/{{ t.user_id }}" hx-target="#modal-container" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all"{% endif %} 
+            class="bg-white dark:bg-slate-900 rounded-3xl p-4 flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-800 transition-colors
             {% if rank == 1 %}!border-slate-300 dark:!border-slate-600{% endif %}">
             
             <div class="flex items-center space-x-4">

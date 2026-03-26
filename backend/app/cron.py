@@ -298,9 +298,8 @@ async def sync_live_scores():
     """
     await _ensure_perf_table()
 
-    # Find contests that started recently but haven't ended completely
     active_contests = await db.fetch("""
-        SELECT id, match_api_id, start_time, updated_at, status 
+        SELECT id, match_api_id, start_time, updated_at, status, team1_id, team2_id 
         FROM contests 
         WHERE status != 'Match Ended' AND start_time <= NOW()
     """)
@@ -365,9 +364,37 @@ async def sync_live_scores():
                     })
                 
                 new_status = "Match Ended" if target_checkpoint == 4 else "Match Started"
+                winner_id = None
+                
+                # If match ended, calculate the winner based on total runs
+                if target_checkpoint == 4:
+                    teams_info = await db.fetch("SELECT id, name FROM teams WHERE id IN ($1, $2)", contest["team1_id"], contest["team2_id"])
+                    team_id_map = {t["name"].lower(): t["id"] for t in teams_info}
+                    
+                    runs_map = {t["id"]: 0 for t in teams_info}
+                    for inning in scorecard_data.get("scorecard", []):
+                        # Some APIs use 'team' key, others use 'team_name' or similar inside the inning data
+                        inning_team = inning.get("team", "").lower()
+                        matched_id = None
+                        for name, tid in team_id_map.items():
+                            if name in inning_team or inning_team in name:
+                                matched_id = tid
+                                break
+                        if matched_id:
+                            # Sum all batsman runs for this inning
+                            for b in inning.get("batting", []):
+                                runs_map[matched_id] += b.get("r", 0)
+                    
+                    # Logically identify winner
+                    if runs_map[contest["team1_id"]] > runs_map[contest["team2_id"]]:
+                        winner_id = contest["team1_id"]
+                    elif runs_map[contest["team2_id"]] > runs_map[contest["team1_id"]]:
+                        winner_id = contest["team2_id"]
+                    # If DRAW/TIE winner_id remains None
+
                 await db.execute(
-                    "UPDATE contests SET updated_at = NOW(), status = $1 WHERE id = $2",
-                    new_status, contest["id"]
+                    "UPDATE contests SET updated_at = NOW(), status = $1, actual_winner_id = $2 WHERE id = $3",
+                    new_status, winner_id, contest["id"]
                 )
             except Exception as e:
                 log.error(f"Error syncing {contest['match_api_id']}: {e}")
