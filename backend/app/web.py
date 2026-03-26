@@ -505,6 +505,31 @@ async def save_team(request: Request):
         </script>
     """)
 
+from app.cron import _fetch_scorecard, _parse_and_store, _update_leaderboard
+
+@router.post("/force_sync", response_class=HTMLResponse)
+async def force_sync(request: Request):
+    """Manual trigger to sync latest score for UI button bypassing chronological checks"""
+    username = _get_username(request)
+    if not username: return HTMLResponse(_toast("Unauthorized", "error"))
+    
+    contest_id = _get_active_contest(request)
+    if not contest_id: return HTMLResponse(_toast("No active contest selected", "error"))
+    
+    contest = await db.fetchrow("SELECT id, match_api_id, status FROM contests WHERE id = $1", contest_id)
+    if not contest or not contest["match_api_id"]:
+        return HTMLResponse(_toast("Match API ID not linked. Wait for live start.", "error"))
+        
+    try:
+        score_data = await _fetch_scorecard(contest["match_api_id"])
+        if score_data and score_data.get("scorecard"):
+            await _parse_and_store(score_data)
+            await _update_leaderboard(contest["match_api_id"])
+            return HTMLResponse(_toast("Successfully manually updated live stats!"))
+        return HTMLResponse(_toast("Failed to retrieve live stats right now.", "error"))
+    except Exception as e:
+        return HTMLResponse(_toast(f"Sync error: {str(e)}", "error"))
+
 
 @router.get("/leaderboard_view", response_class=HTMLResponse)
 async def leaderboard_view(request: Request):
