@@ -293,64 +293,91 @@ async def _update_leaderboard(match_api_id: str):
 async def sync_live_scores():
     """
     Main sync endpoint — called by Vercel Cron or GitHub Actions.
-    Fetches current matches, grabs scorecards, calculates points.
+    Smart Sync: Limits to exactly 4 hits per match at 1, 2, 3, and 4 hour marks.
+    Does NOT aggressively poll /currentMatches.
     """
     await _ensure_perf_table()
 
-    # Step 1: Get current/recent matches
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(f"{CRICKET_API_BASE}/currentMatches", params={
-            "apikey": CRICKET_API_KEY, "offset": 0
-        })
-        resp.raise_for_status()
-        matches_data = resp.json()
+    # Find contests that started recently but haven't ended completely
+    active_contests = await db.fetch("""
+        SELECT id, match_api_id, start_time, updated_at, status 
+        FROM contests 
+        WHERE status != 'Match Ended' AND start_time <= NOW()
+    """)
 
-    if matches_data.get("status") != "success":
-        return {"status": "error", "message": "Failed to fetch matches"}
+    if not active_contests:
+        return {"status": "success", "message": "No active matches to sync"}
 
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    
     results = []
-    for match in matches_data.get("data", []):
-        match_id = match["id"]
-        match_name = match.get("name", "")
+    api_hits_used = 0
 
-        # Store/update match record
-        await db.execute("""
-            INSERT INTO matches (api_id, name, status, teams, match_type, date, match_started, match_ended, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            ON CONFLICT (api_id) DO UPDATE SET
-                status = $3, match_started = $7, match_ended = $8, updated_at = NOW()
-        """,
-            match_id, match_name, match.get("status", ""),
-            ", ".join(match.get("teams", [])),
-            match.get("matchType", ""),
-            match.get("date", ""),
-            match.get("matchStarted", False),
-            match.get("matchEnded", False)
-        )
-
-        # Only fetch scorecard if match has started and has fantasy data
-        if not match.get("matchStarted"):
+    for contest in active_contests:
+        start = contest["start_time"]
+        if not start:
             continue
+            
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
 
-        try:
-            scorecard_data = await _fetch_scorecard(match_id)
-            if scorecard_data and scorecard_data.get("scorecard"):
-                count = await _parse_and_store(scorecard_data)
-                teams_updated = await _update_leaderboard(match_id)
-                results.append({
-                    "match": match_name,
-                    "players_synced": count,
-                    "teams_updated": teams_updated
-                })
-        except Exception as e:
-            log.error(f"Error syncing {match_name}: {e}")
-            results.append({"match": match_name, "error": str(e)})
+        diff_hours = (now_utc - start).total_seconds() / 3600.0
+        
+        target_checkpoint = None
+        if diff_hours >= 4.0:
+            target_checkpoint = 4
+        elif diff_hours >= 3.0:
+            target_checkpoint = 3
+        elif diff_hours >= 2.0:
+            target_checkpoint = 2
+        elif diff_hours >= 1.0:
+            target_checkpoint = 1
+            
+        if not target_checkpoint:
+            continue
+            
+        checkpoint_time = start + timedelta(hours=target_checkpoint)
+        last_sync = contest.get("updated_at")
+        
+        needs_sync = False
+        if not last_sync:
+            needs_sync = True
+        else:
+            if last_sync.tzinfo is None:
+                last_sync = last_sync.replace(tzinfo=timezone.utc)
+            if last_sync < checkpoint_time:
+                needs_sync = True
+                
+        if needs_sync:
+            try:
+                scorecard_data = await _fetch_scorecard(contest["match_api_id"])
+                api_hits_used += 1
+                
+                if scorecard_data and scorecard_data.get("scorecard"):
+                    count = await _parse_and_store(scorecard_data)
+                    teams_updated = await _update_leaderboard(contest["match_api_id"])
+                    results.append({
+                        "match": contest["match_api_id"],
+                        "checkpoint": target_checkpoint,
+                        "players_synced": count,
+                        "teams_updated": teams_updated
+                    })
+                
+                new_status = "Match Ended" if target_checkpoint == 4 else "Match Started"
+                await db.execute(
+                    "UPDATE contests SET updated_at = NOW(), status = $1 WHERE id = $2",
+                    new_status, contest["id"]
+                )
+            except Exception as e:
+                log.error(f"Error syncing {contest['match_api_id']}: {e}")
+                results.append({"match": contest["match_api_id"], "error": str(e)})
 
     return {
         "status": "success",
         "matches_processed": len(results),
         "details": results,
-        "api_hits": matches_data.get("info", {}).get("hitsUsed", "?")
+        "api_hits_triggered": api_hits_used
     }
 
 
