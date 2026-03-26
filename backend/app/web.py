@@ -571,12 +571,7 @@ async def global_leaderboard_view(request: Request):
         TournamentPoints AS (
             SELECT 
                 user_id,
-                CASE 
-                    WHEN rnk = 1 THEN 10
-                    WHEN rnk = 2 THEN 8
-                    WHEN rnk = 3 THEN 6
-                    ELSE 0 
-                END as tourney_pts
+                GREATEST(11 - rnk, 0) as tourney_pts
             FROM MatchRanks
         )
         SELECT 
