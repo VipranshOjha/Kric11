@@ -56,7 +56,7 @@
             
             <div class="text-right">
                 <h3 class="font-semibold text-base text-slate-700 dark:text-slate-200">{{ t.total_points }}</h3>
-                <p class="text-[9px] text-slate-300 dark:text-slate-600 font-medium tracking-wider uppercase">pts</p>
+                <p class="text-[9px] text-slate-300 dark:text-slate-600 font-medium tracking-wider uppercase">{% if is_global %}Tourney Pts{% else %}pts{% endif %}</p>
             </div>
         </div>
     {% endfor %}

@@ -558,13 +558,35 @@ async def global_leaderboard_view(request: Request):
     username = _get_username(request)
     if not username: return _auth_redirect(request)
     
-    # Aggregate points across all fantasy teams for the user
+    # Aggregate tournament points based on rank per match
     teams = await db.fetch("""
-        SELECT u.username, COALESCE(SUM(ft.total_points), 0.0) as total_points, COUNT(ft.id) as detail_count
+        WITH MatchRanks AS (
+            SELECT 
+                user_id, 
+                contest_id,
+                RANK() OVER(PARTITION BY contest_id ORDER BY total_points DESC) as rnk
+            FROM fantasy_teams
+            WHERE total_points > 0
+        ),
+        TournamentPoints AS (
+            SELECT 
+                user_id,
+                CASE 
+                    WHEN rnk = 1 THEN 10
+                    WHEN rnk = 2 THEN 8
+                    WHEN rnk = 3 THEN 6
+                    ELSE 0 
+                END as tourney_pts
+            FROM MatchRanks
+        )
+        SELECT 
+            u.username, 
+            COALESCE(SUM(tp.tourney_pts), 0) as total_points, 
+            COUNT(tp.user_id) as detail_count
         FROM users u
-        LEFT JOIN fantasy_teams ft ON u.id = ft.user_id
+        LEFT JOIN TournamentPoints tp ON u.id = tp.user_id
         GROUP BY u.id, u.username
-        ORDER BY total_points DESC
+        ORDER BY total_points DESC, detail_count DESC
     """)
 
     return templates.TemplateResponse("components/leaderboard.html", {
