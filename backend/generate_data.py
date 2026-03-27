@@ -171,7 +171,6 @@ Sunrisers Hyderabad,Praful Hinge,BOW
 Sunrisers Hyderabad,Krish Fuletra,BOW
 Sunrisers Hyderabad,Shivam Mavi,BOW
 Sunrisers Hyderabad,David Payne,BOW
-Team Name,Player Name,Role
 Rajasthan Royals,Shubham Dubey,BAT
 Rajasthan Royals,Shimron Hetmyer,BAT
 Rajasthan Royals,Yashasvi Jaiswal,BAT
@@ -268,6 +267,7 @@ def run():
     pid = 1
     for line in lines:
         if not line.strip(): continue
+        if line.strip().startswith("Team Name"): continue  # skip duplicate headers
         team, name, role = line.split(",")
         team = team.strip()
         name = name.strip()
@@ -303,7 +303,7 @@ def run():
         f.write("]\n\n")
 
         f.write("PLAYERS_BY_ID = {p['id']: p for p in PLAYERS}\n\n")
-        f.write("USERS = {}\nDRAFTS = {}\nLOCKED_TEAMS = {}\nBUDGET_LIMIT = 100.0\nMAX_PLAYERS = 12\n")
+        f.write("USERS = {}\nDRAFTS = {}\nLOCKED_TEAMS = {}\nBUDGET_LIMIT = 100.0\nMAX_PLAYERS = 11\n")
 
 if __name__ == "__main__":
     run()

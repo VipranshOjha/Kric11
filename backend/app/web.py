@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory=os.path.join(_here, "templates"))
 SECRET_KEY = os.getenv("SECRET_KEY", "kric11_super_secret_key_change_in_production")
 ALGORITHM = "HS256"
 BUDGET_LIMIT = 100.0
-MAX_PLAYERS = 12
+MAX_PLAYERS = 11
 
 # ── Auth Helpers ──
 
@@ -416,8 +416,8 @@ async def confirm_team(request: Request):
         WHERE ud.user_id = $1 AND ud.contest_id = $2
     """, user_id, contest_id)
     
-    if len(draft_rows) != 12:
-        return HTMLResponse(_toast(f"Select exactly 12 players ({len(draft_rows)}/12)", "error"))
+    if len(draft_rows) != 11:
+        return HTMLResponse(_toast(f"Select exactly 11 players ({len(draft_rows)}/11)", "error"))
 
     c_player = next((p for p in draft_rows if p["is_captain"]), None)
     vc_player = next((p for p in draft_rows if p["is_vice_captain"]), None)
@@ -460,8 +460,8 @@ async def save_team(request: Request, predicted_winner: int = Form(...)):
         return HTMLResponse(_toast("Match has already started. Edits disabled.", "error"))
 
     draft_rows = await db.fetch("SELECT player_id, is_captain, is_vice_captain FROM user_drafts WHERE user_id = $1 AND contest_id = $2", user_id, contest_id)
-    if len(draft_rows) != 12:
-        return HTMLResponse(_toast(f"Select exactly 12 players ({len(draft_rows)}/12)", "error"))
+    if len(draft_rows) != 11:
+        return HTMLResponse(_toast(f"Select exactly 11 players ({len(draft_rows)}/11)", "error"))
 
     has_c = any(r["is_captain"] for r in draft_rows)
     has_vc = any(r["is_vice_captain"] for r in draft_rows)
