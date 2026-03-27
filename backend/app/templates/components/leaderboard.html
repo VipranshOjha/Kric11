@@ -36,8 +36,9 @@
     
     {% for t in teams %}
         {% set rank = loop.index %}
-        <div {% if not is_global %}hx-get="/web/team/{{ contest_id }}/user/{{ t.user_id }}" hx-target="#modal-container" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all"{% endif %} 
+        <div {% if not is_global %}hx-get="/web/team/{{ contest_id }}/user/{{ t.user_id }}" hx-target="#modal-container" hx-swap="innerHTML"{% endif %} 
             class="bg-white dark:bg-slate-900 rounded-3xl p-4 flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-800 transition-colors
+            {% if not is_global %}cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40{% endif %}
             {% if rank == 1 %}!border-slate-300 dark:!border-slate-600{% endif %}">
             
             <div class="flex items-center space-x-4">
@@ -56,7 +57,7 @@
                 </div>
             </div>
             
-            <div class="text-right">
+            <div class="text-right flex-shrink-0">
                 <h3 class="font-semibold text-base text-slate-700 dark:text-slate-200">{{ t.total_points }}</h3>
                 <p class="text-[9px] text-slate-300 dark:text-slate-600 font-medium tracking-wider uppercase">{% if is_global %}Tourney Pts{% else %}pts{% endif %}</p>
             </div>
