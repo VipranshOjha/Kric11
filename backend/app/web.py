@@ -586,7 +586,7 @@ async def global_leaderboard_view(request: Request):
             SELECT 
                 user_id,
                 GREATEST(11 - rnk, 0) + 
-                (CASE WHEN predicted_winner_id = actual_winner_id AND actual_winner_id IS NOT NULL THEN 2 ELSE 0 END) as tourney_pts
+                (CASE WHEN predicted_winner_id = actual_winner_id AND actual_winner_id IS NOT NULL THEN 1 ELSE 0 END) as tourney_pts
             FROM MatchRanks
         )
         SELECT 
