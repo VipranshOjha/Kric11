@@ -81,6 +81,26 @@ def calculate_fantasy_points(batting, bowling, fielding):
     return pts
 
 
+def match_player_names(name1: str, name2: str) -> bool:
+    """Robust match for player names, handling initials like 'V Kohli' == 'Virat Kohli'."""
+    if not name1 or not name2: return False
+    n1 = name1.lower().replace(".", " ").strip()
+    n2 = name2.lower().replace(".", " ").strip()
+    
+    if n1 == n2 or n1 in n2 or n2 in n1:
+        return True
+        
+    p1 = n1.split()
+    p2 = n2.split()
+    
+    if len(p1) >= 2 and len(p2) >= 2:
+        # Match if both share the same exact last name and first initial
+        if p1[-1] == p2[-1] and p1[0][0] == p2[0][0]:
+            return True
+            
+    return False
+
+
 async def _ensure_perf_table():
     """Create player_match_performances table if it doesn't exist."""
     await db.execute("""
@@ -254,6 +274,13 @@ async def _update_leaderboard(match_api_id: str):
         WHERE ft.contest_id = $1
     """, contest_id)
 
+    # Bulk fetch all match performances
+    perfs = await db.fetch("""
+        SELECT player_name, total_points 
+        FROM player_match_performances
+        WHERE match_api_id = $1
+    """, match_api_id)
+
     for team in teams:
         user_id = team["user_id"]
 
@@ -267,19 +294,16 @@ async def _update_leaderboard(match_api_id: str):
 
         total = 0.0
         for d in drafts:
-            # Match by player name
-            perf = await db.fetchrow("""
-                SELECT total_points FROM player_match_performances
-                WHERE match_api_id = $1 AND player_name ILIKE $2
-            """, match_api_id, f"%{d['player_name']}%")
-
-            if perf:
-                pts = perf["total_points"]
-                if d["is_captain"]:
-                    pts *= 2.0
-                elif d["is_vice_captain"]:
-                    pts *= 1.5
-                total += pts
+            # Robust match by player name
+            for p in perfs:
+                if match_player_names(d["player_name"], p["player_name"]):
+                    pts = p["total_points"]
+                    if d["is_captain"]:
+                        pts *= 2.0
+                    elif d["is_vice_captain"]:
+                        pts *= 1.5
+                    total += pts
+                    break
 
         # Update the fantasy team's total for this contest
         await db.execute("UPDATE fantasy_teams SET total_points = $1 WHERE user_id = $2 AND contest_id = $3", total, user_id, contest_id)
@@ -298,10 +322,16 @@ async def sync_live_scores():
     """
     await _ensure_perf_table()
 
+    # Join with teams to get their abbreviations for auto-linking support
     active_contests = await db.fetch("""
-        SELECT id, match_api_id, start_time, updated_at, status, team1_id, team2_id 
-        FROM contests 
-        WHERE status != 'Match Ended' AND start_time <= NOW()
+        SELECT c.id, c.match_api_id, c.start_time, c.updated_at, c.status, 
+               c.team1_id, c.team2_id,
+               t1.abbreviation as t1_abbr, t2.abbreviation as t2_abbr,
+               t1.name as t1_name, t2.name as t2_name
+        FROM contests c
+        JOIN teams t1 ON c.team1_id = t1.id
+        JOIN teams t2 ON c.team2_id = t2.id
+        WHERE c.status != 'Match Ended' AND c.start_time <= NOW()
     """)
 
     if not active_contests:
@@ -320,6 +350,52 @@ async def sync_live_scores():
             
         if start.tzinfo is None:
             start = start.replace(tzinfo=timezone.utc)
+            
+        # Automated API ID Linking
+        if not contest["match_api_id"]:
+            log.info(f"Contest {contest['id']} missing API ID. Searching...")
+            try:
+                # Need to lookup currentMatches
+                url = f"{CRICKET_API_BASE}/currentMatches"
+                params = {"apikey": CRICKET_API_KEY, "offset": 0}
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(url, params=params)
+                    api_hits_used += 1
+                    data = resp.json()
+                    
+                if data.get("status") == "success" and data.get("data"):
+                    # Find matching teams
+                    t1_keys = [contest["t1_name"].lower(), contest["t1_abbr"].lower()]
+                    t2_keys = [contest["t2_name"].lower(), contest["t2_abbr"].lower()]
+                    
+                    found_api_id = None
+                    for m in data["data"]:
+                        if len(m.get("teams", [])) >= 2:
+                            api_t1 = m["teams"][0].lower()
+                            api_t2 = m["teams"][1].lower()
+                            
+                            # Simple logic: If both API team names contain abbreviations or full names
+                            match_t1 = any(k in api_t1 or k in api_t2 for k in t1_keys)
+                            match_t2 = any(k in api_t1 or k in api_t2 for k in t2_keys)
+                            
+                            if match_t1 and match_t2:
+                                found_api_id = m["id"]
+                                break
+                    
+                    if found_api_id:
+                        log.info(f"Auto-linked Contest {contest['id']} to API ID {found_api_id}")
+                        await db.execute("UPDATE contests SET match_api_id = $1 WHERE id = $2", found_api_id, contest["id"])
+                        # Update the in-memory dict so sync can proceed
+                        # Because dict(Record) is immutable, we create a new dict or just use the found_id below.
+                        # Wait, we can't mutate Record directly, let's just make a mutable copy of the dict.
+                        contest_dict = dict(contest)
+                        contest_dict["match_api_id"] = found_api_id
+                        contest = contest_dict
+                    else:
+                        continue # Can't sync if not linked
+            except Exception as e:
+                log.error(f"Error auto-linking ID for contest {contest['id']}: {e}")
+                continue
 
         diff_hours = (now_utc - start).total_seconds() / 3600.0
         

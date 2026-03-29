@@ -489,10 +489,8 @@ async def save_team(request: Request, predicted_winner: int = Form(...)):
         perfs = await db.fetch("SELECT player_name, total_points FROM player_match_performances WHERE match_api_id = $1", contest["match_api_id"])
         
         for d in draft_rows:
-            d_name = d['player_name'].lower()
             for p in perfs:
-                p_name = p['player_name'].lower()
-                if d_name in p_name or p_name in d_name:
+                if match_player_names(d['player_name'], p['player_name']):
                     pts = p["total_points"]
                     if d["is_captain"]: pts *= 2.0
                     elif d["is_vice_captain"]: pts *= 1.5
@@ -516,7 +514,7 @@ async def save_team(request: Request, predicted_winner: int = Form(...)):
         </script>
     """)
 
-from app.cron import _fetch_scorecard, _parse_and_store, _update_leaderboard
+from app.cron import _fetch_scorecard, _parse_and_store, _update_leaderboard, match_player_names
 
 @router.post("/force_sync", response_class=HTMLResponse)
 async def force_sync(request: Request):
